@@ -5,7 +5,8 @@
       "Bash(npm init:*)",
       "Bash(npm install:*)",
       "Bash(npx vite:*)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "WebSearch"
     ]
   }
 }
