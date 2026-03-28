@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir -p \"/Users/jazmo/Documents/GitHub/kneecap exploder 9000/backend\")",
+      "Bash(npm init:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vite:*)",
+      "Bash(npm uninstall:*)"
+    ]
+  }
+}
