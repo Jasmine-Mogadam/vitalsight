@@ -118,6 +118,7 @@ body {
   background: #000;
   border: 1px solid var(--border);
   aspect-ratio: 4/3;
+  min-height: 360px;
 }
 
 .camera-container video {
@@ -169,13 +170,15 @@ body {
 }
 
 .camera-placeholder {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100%;
   gap: 16px;
   color: var(--text-secondary);
+  z-index: 1;
 }
 
 .camera-placeholder button {

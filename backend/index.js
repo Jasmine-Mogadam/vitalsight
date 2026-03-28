@@ -6,6 +6,14 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
+const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20';
+
+// Request logger
+app.use('/api', (req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
+
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', service: 'vitalsight-api' });
@@ -19,7 +27,7 @@ app.post('/api/analyze', async (req, res) => {
     if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -43,11 +51,15 @@ Provide a brief analysis suitable for a patient check-in.`
     );
 
     const data = await response.json();
+    if (!response.ok) {
+      console.error('Gemini API error:', JSON.stringify(data));
+      return res.status(502).json({ error: 'Gemini API error', details: data.error?.message || JSON.stringify(data) });
+    }
     const analysis = data.candidates?.[0]?.content?.parts?.[0]?.text || 'Unable to analyze vitals at this time.';
     res.json({ analysis });
   } catch (err) {
     console.error('Gemini error:', err);
-    res.status(500).json({ error: 'Analysis failed' });
+    res.status(500).json({ error: 'Analysis failed', details: err.message });
   }
 });
 
@@ -191,7 +203,7 @@ app.post('/api/generate-synthetic', async (req, res) => {
     if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -221,6 +233,10 @@ Return ONLY valid JSON, no markdown.`
     );
 
     const data = await response.json();
+    if (!response.ok) {
+      console.error('Gemini API error:', JSON.stringify(data));
+      return res.status(502).json({ error: 'Gemini API error', details: data.error?.message || JSON.stringify(data) });
+    }
     let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
     // Strip markdown code fences if present
     text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -228,11 +244,16 @@ Return ONLY valid JSON, no markdown.`
     res.json({ data: syntheticData, count: syntheticData.length });
   } catch (err) {
     console.error('Synthetic data error:', err);
-    res.status(500).json({ error: 'Synthetic data generation failed' });
+    res.status(500).json({ error: 'Synthetic data generation failed', details: err.message });
   }
 });
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`VitalSight API running on port ${PORT}`);
+  const keys = ['GEMINI_API_KEY', 'ELEVENLABS_API_KEY', 'SOLANA_PRIVATE_KEY', 'B2_KEY_ID'];
+  keys.forEach(k => {
+    const val = process.env[k];
+    console.log(`  ${k}: ${val ? `set (${val.length} chars)` : 'MISSING'}`);
+  });
 });
