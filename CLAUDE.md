@@ -19,20 +19,17 @@ backend/                Express API server
   .env.example          Required environment variables
 ```
 
-## Running Locally
+## Commands (from project root)
 
 ```bash
-# Backend (in one terminal)
-cd backend
-cp .env.example .env    # fill in API keys
-npm install
-npm run dev             # starts on :3001
-
-# Frontend (in another terminal)
-cd frontend
-npm install
-npm run dev             # starts on :5173, proxies /api to :3001
+npm run install:all     # install frontend + backend deps
+npm run dev             # start both frontend (:5173) and backend (:3001) concurrently
+npm run deploy          # build frontend + deploy backend to Fly.io + frontend to Netlify
+npm run deploy:backend  # deploy only backend (fly deploy)
+npm run deploy:frontend # build + deploy only frontend (netlify deploy --prod)
 ```
+
+First-time setup: `cp backend/.env.example backend/.env` and fill in API keys.
 
 ## API Endpoints (backend)
 
