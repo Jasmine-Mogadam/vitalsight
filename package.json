@@ -6,9 +6,7 @@
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "build": "cd frontend && npm run build",
-    "deploy": "npm run deploy:backend && npm run deploy:frontend",
-    "deploy:backend": "cd backend && fly deploy",
-    "deploy:frontend": "cd frontend && npm run build && netlify deploy --prod --dir=dist",
+    "deploy": "bash deploy.sh",
     "install:all": "cd frontend && npm install && cd ../backend && npm install"
   },
   "devDependencies": {

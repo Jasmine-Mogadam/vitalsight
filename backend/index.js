@@ -1,10 +1,14 @@
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// Serve frontend static files (built by Dockerfile)
+app.use(express.static(path.join(__dirname, 'public')));
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash-preview-05-20';
 
@@ -246,6 +250,11 @@ Return ONLY valid JSON, no markdown.`
     console.error('Synthetic data error:', err);
     res.status(500).json({ error: 'Synthetic data generation failed', details: err.message });
   }
+});
+
+// SPA fallback — serve index.html for non-API routes
+app.get('/{*splat}', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 const PORT = process.env.PORT || 3001;

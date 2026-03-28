@@ -2,6 +2,7 @@ app = 'vitalsight-api'
 primary_region = 'ord'
 
 [build]
+  dockerfile = 'Dockerfile'
 
 [http_service]
   internal_port = 3001

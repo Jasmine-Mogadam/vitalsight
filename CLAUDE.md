@@ -9,14 +9,15 @@ frontend/               Vite + React SPA
   src/App.jsx           Main app — all pages in one file (Monitor, Synthetic Data, Business Plan, Social Impact)
   src/App.css           Dark theme UI styles
   index.html            Entry point — loads MediaPipe via CDN script tags
-  netlify.toml          Netlify deploy config (proxies /api/* to Fly.io backend)
   vite.config.js        Dev proxy for /api to localhost:3001
 
 backend/                Express API server
-  index.js              All endpoints in one file
-  fly.toml              Fly.io deploy config
-  Dockerfile            Production container
+  index.js              All endpoints in one file + serves frontend static files
   .env.example          Required environment variables
+
+Dockerfile              Multi-stage build (frontend build → backend with static files)
+fly.toml                Fly.io deploy config
+deploy.sh               Deploy script (creates app/machines if needed, then deploys)
 ```
 
 ## Commands (from project root)
@@ -24,9 +25,7 @@ backend/                Express API server
 ```bash
 npm run install:all     # install frontend + backend deps
 npm run dev             # start both frontend (:5173) and backend (:3001) concurrently
-npm run deploy          # build frontend + deploy backend to Fly.io + frontend to Netlify
-npm run deploy:backend  # deploy only backend (fly deploy)
-npm run deploy:frontend # build + deploy only frontend (netlify deploy --prod)
+npm run deploy          # build + deploy everything to Fly.io
 ```
 
 First-time setup: `cp backend/.env.example backend/.env` and fill in API keys.
@@ -52,7 +51,7 @@ First-time setup: `cp backend/.env.example backend/.env` and fill in API keys.
 
 ## Frontend Environment Variables
 
-- `VITE_API_URL` — Backend URL override (empty in dev since Vite proxies; set to Fly.io URL in production)
+- `VITE_API_URL` — Backend URL override (empty in dev since Vite proxies; not needed in production since frontend is served by the same Express server)
 - `VITE_PRESAGE_API_KEY` — Presage SDK API key (optional, falls back to simulated vitals)
 
 ## Key Technical Details
@@ -65,10 +64,8 @@ First-time setup: `cp backend/.env.example backend/.env` and fill in API keys.
 
 ## Deployment
 
-- **Frontend** → Netlify (auto-deploys from GitHub, `netlify.toml` handles build + API proxy redirects)
-- **Backend** → Fly.io (`fly deploy` from `backend/` directory)
+- **Single Fly.io app** — `deploy.sh` checks if the app/machines exist, creates them if needed, then deploys. The Dockerfile does a multi-stage build: builds the frontend, then copies the `dist/` output into the backend's `public/` directory. Express serves both the API and the static frontend.
 - **Domain** → .tech domain pointed via Cloudflare DNS
-- Update `netlify.toml` redirect target if Fly.io app name changes from `vitalsight-api`
 
 ## Hackathon Category Targets (12/13)
 
