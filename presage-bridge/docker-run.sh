@@ -49,10 +49,9 @@ if lsof -nP -iTCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
 fi
 
 echo "Building Presage bridge image $IMAGE_NAME for $DOCKER_PLATFORM with ubuntu:$UBUNTU_VERSION..."
-if ! DOCKER_BUILDKIT=1 docker build --platform "$DOCKER_PLATFORM" --build-arg "UBUNTU_VERSION=$UBUNTU_VERSION" --progress=plain -f "$ROOT_DIR/presage-bridge/Dockerfile" -t "$IMAGE_NAME" "$ROOT_DIR" >"$BUILD_LOG_PATH" 2>&1; then
+if ! DOCKER_BUILDKIT=1 docker build --platform "$DOCKER_PLATFORM" --build-arg "UBUNTU_VERSION=$UBUNTU_VERSION" --progress=plain -f "$ROOT_DIR/presage-bridge/Dockerfile" -t "$IMAGE_NAME" "$ROOT_DIR" 2>&1 | tee "$BUILD_LOG_PATH"; then
   echo "Presage bridge image build failed." >&2
-  echo "Last 40 lines from $BUILD_LOG_PATH:" >&2
-  tail -n 40 "$BUILD_LOG_PATH" >&2 || true
+  echo "Full build log saved to $BUILD_LOG_PATH" >&2
   exit 100
 fi
 echo "Presage bridge image built successfully."

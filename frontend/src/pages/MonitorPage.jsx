@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, apiFetch } from '../lib/api';
 
 const PRESAGE_CLIP_MEASUREMENT_MS = 30000;
+const PRESAGE_FAILURES_BEFORE_DEMO = 3;
 
 const LANDMARKS = {
   forehead: 10,
@@ -40,6 +41,7 @@ export default function MonitorPage() {
   const cameraUtilRef = useRef(null);
   const latestVitalsRef = useRef(null);
   const localClipMeasurementRunningRef = useRef(false);
+  const presageFailureCountRef = useRef(0);
   const [cameraOn, setCameraOn] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [vitals, setVitals] = useState(null);
@@ -152,6 +154,19 @@ export default function MonitorPage() {
       setVitals(nextVitals);
     }, 3000);
   }, []);
+
+  const handlePresageMeasurementFailure = useCallback((error, fallbackMessage) => {
+    presageFailureCountRef.current += 1;
+    const failureCount = presageFailureCountRef.current;
+    console.debug('[monitor] presage-measure-failed', {
+      failureCount,
+      message: error?.message || String(error),
+    });
+
+    if (failureCount >= PRESAGE_FAILURES_BEFORE_DEMO) {
+      enableDemoMode(fallbackMessage);
+    }
+  }, [enableDemoMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -304,18 +319,19 @@ export default function MonitorPage() {
       }
 
       console.debug('[monitor] presage-clip-measure-success', data.vitals);
+      presageFailureCountRef.current = 0;
       setVitals((current) => ({
         ...current,
         ...data.vitals,
       }));
       return true;
     } catch (error) {
-      enableDemoMode(error.message || 'Presage video measurement failed. Falling back to demo vitals.');
+      handlePresageMeasurementFailure(error, error.message || 'Presage video measurement failed. Falling back to demo vitals.');
       return false;
     } finally {
       localClipMeasurementRunningRef.current = false;
     }
-  }, [enableDemoMode, recordMeasurementClip]);
+  }, [handlePresageMeasurementFailure, recordMeasurementClip]);
 
   const pollPresage = useCallback(async () => {
     const image = captureFrame();
@@ -341,16 +357,17 @@ export default function MonitorPage() {
       }
 
       console.debug('[monitor] presage-measure-success', data.vitals);
+      presageFailureCountRef.current = 0;
       setVitals((current) => ({
         ...current,
         ...data.vitals,
       }));
       return true;
     } catch (error) {
-      enableDemoMode(error.message || 'Presage measurement failed. Falling back to demo vitals.');
+      handlePresageMeasurementFailure(error, error.message || 'Presage measurement failed. Falling back to demo vitals.');
       return false;
     }
-  }, [enableDemoMode]);
+  }, [handlePresageMeasurementFailure]);
 
   const startCamera = useCallback(async () => {
     try {

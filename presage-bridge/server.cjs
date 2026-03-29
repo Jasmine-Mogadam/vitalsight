@@ -94,6 +94,7 @@ const SDK_VERBOSITY = Number(process.env.PRESAGE_SDK_VERBOSITY || 1);
 const SDK_ENABLE_EDGE_METRICS = parseBoolean(process.env.PRESAGE_SDK_ENABLE_EDGE_METRICS, true);
 const SDK_SPOT_DURATION_S = Number(process.env.PRESAGE_SDK_SPOT_DURATION_S || 30);
 const SDK_SPOT_TIMEOUT_MS = Number(process.env.PRESAGE_SDK_SPOT_TIMEOUT_MS || 90000);
+const SDK_ENABLE_CONTINUOUS = parseBoolean(process.env.PRESAGE_SDK_ENABLE_CONTINUOUS, false);
 const MAX_JSON_BODY_BYTES = 60 * 1024 * 1024;
 
 function sendJson(res, statusCode, payload) {
@@ -224,13 +225,16 @@ function parseDataUrl(dataUrl) {
     return null;
   }
 
-  const match = /^data:([^;,]+);base64,(.+)$/su.exec(dataUrl);
+  const match = /^data:([^,]+);base64,(.+)$/su.exec(dataUrl);
   if (!match) {
     return null;
   }
 
+  const fullMimeType = match[1];
+  const mimeType = fullMimeType.split(';', 1)[0] || fullMimeType;
+
   return {
-    mimeType: match[1],
+    mimeType,
     buffer: Buffer.from(match[2], 'base64'),
   };
 }
@@ -239,7 +243,9 @@ function createSdkBridgeManager() {
   let worker = null;
   let startPromise = null;
   let restarting = false;
+  let disabledReason = SDK_ENABLE_CONTINUOUS ? null : 'Continuous SDK worker disabled by configuration';
   let stdoutBuffer = '';
+  let stderrBuffer = '';
   let latestMetrics = null;
   let latestRaw = null;
   let latestStatus = null;
@@ -264,6 +270,8 @@ function createSdkBridgeManager() {
       runnerPath: SDK_RUNNER_PATH,
       running: Boolean(worker),
       startedAt,
+      disabled: Boolean(disabledReason),
+      disabledReason,
       latestStatus,
       latestMetricsAt: latestMetrics?.timestamp || null,
       lastError,
@@ -333,7 +341,32 @@ function createSdkBridgeManager() {
     }, 2000);
   }
 
+  function handleStderr(data) {
+    stderrBuffer += data;
+    const lines = stderrBuffer.split(/\r?\n/u);
+    stderrBuffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (!line) {
+        continue;
+      }
+
+      console.error(`[presage-sdk] ${line}`);
+      lastError = line;
+      if (line.includes('GeneratedDatabase()->Add(encoded_file_descriptor, size)')) {
+        disabledReason = 'Continuous SDK worker disabled after protobuf descriptor crash';
+      }
+    }
+  }
+
   async function start() {
+    if (disabledReason) {
+      const error = new Error(disabledReason);
+      error.statusCode = 503;
+      error.details = snapshot();
+      throw error;
+    }
+
     if (worker) {
       return;
     }
@@ -364,6 +397,7 @@ function createSdkBridgeManager() {
       worker = child;
       startedAt = new Date().toISOString();
       stdoutBuffer = '';
+      stderrBuffer = '';
       lastError = null;
 
       let settled = false;
@@ -379,11 +413,7 @@ function createSdkBridgeManager() {
 
       child.stderr.setEncoding('utf8');
       child.stderr.on('data', (chunk) => {
-        const text = chunk.trim();
-        if (text) {
-          console.error(`[presage-sdk] ${text}`);
-          lastError = text;
-        }
+        handleStderr(chunk);
       });
 
       child.on('error', (error) => {
@@ -405,6 +435,15 @@ function createSdkBridgeManager() {
       });
 
       child.on('exit', (code, signal) => {
+        if (stderrBuffer) {
+          console.error(`[presage-sdk] ${stderrBuffer}`);
+          lastError = stderrBuffer;
+          if (stderrBuffer.includes('GeneratedDatabase()->Add(encoded_file_descriptor, size)')) {
+            disabledReason = 'Continuous SDK worker disabled after protobuf descriptor crash';
+          }
+          stderrBuffer = '';
+        }
+
         worker = null;
         startedAt = null;
         latestStatus = {
@@ -415,7 +454,9 @@ function createSdkBridgeManager() {
         if (code !== 0) {
           lastError = `SmartSpectra worker exited with code ${code}${signal ? ` (${signal})` : ''}`;
         }
-        scheduleRestart();
+        if (!disabledReason) {
+          scheduleRestart();
+        }
       });
 
       setTimeout(() => {
@@ -534,6 +575,7 @@ async function runSdkSpotMeasurement(videoDataUrl) {
 
       let stdoutBuffer = '';
       let stderrBuffer = '';
+      let stderrLineBuffer = '';
       let metricsPayload = null;
 
       const timeout = setTimeout(() => {
@@ -569,6 +611,17 @@ async function runSdkSpotMeasurement(videoDataUrl) {
       child.stderr.setEncoding('utf8');
       child.stderr.on('data', (chunk) => {
         stderrBuffer += chunk;
+        stderrLineBuffer += chunk;
+        const lines = stderrLineBuffer.split(/\r?\n/u);
+        stderrLineBuffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line) {
+            continue;
+          }
+
+          console.error(`[presage-sdk-spot] ${line}`);
+        }
       });
 
       child.on('error', (error) => {
@@ -578,6 +631,11 @@ async function runSdkSpotMeasurement(videoDataUrl) {
 
       child.on('exit', (code, signal) => {
         clearTimeout(timeout);
+
+        if (stderrLineBuffer) {
+          console.error(`[presage-sdk-spot] ${stderrLineBuffer}`);
+          stderrLineBuffer = '';
+        }
 
         if (metricsPayload) {
           resolve({
@@ -612,6 +670,18 @@ async function handleHealth(res) {
       imagePolling: false,
       videoUpload: fs.existsSync(SDK_RUNNER_PATH),
     };
+
+    if (!SDK_ENABLE_CONTINUOUS) {
+      sendJson(res, capabilities.videoUpload ? 200 : 503, {
+        status: capabilities.videoUpload ? 'degraded' : 'error',
+        service: 'presage-bridge',
+        mode: MODE,
+        timestamp: new Date().toISOString(),
+        worker: sdkBridge.snapshot(),
+        capabilities,
+      });
+      return;
+    }
 
     try {
       await sdkBridge.start();
@@ -694,6 +764,10 @@ const server = http.createServer(async (req, res) => {
       }
 
       if (MODE === 'sdk') {
+        if (!SDK_ENABLE_CONTINUOUS) {
+          sendJson(res, 400, { error: 'video is required when continuous sdk mode is disabled' });
+          return;
+        }
         const result = await sdkBridge.measure();
         sendJson(res, 200, result);
         return;
@@ -726,7 +800,7 @@ process.on('SIGTERM', shutdown);
 server.listen(PORT, HOST, async () => {
   console.log(`Presage bridge listening on http://${HOST}:${PORT} (${MODE} mode)`);
 
-  if (MODE === 'sdk') {
+  if (MODE === 'sdk' && SDK_ENABLE_CONTINUOUS) {
     try {
       await sdkBridge.start();
     } catch (error) {

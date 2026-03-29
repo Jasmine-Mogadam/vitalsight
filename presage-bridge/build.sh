@@ -36,6 +36,18 @@ if [[ -n "${CMAKE_PREFIX_PATH:-}" ]]; then
   EXTRA_ARGS+=("-DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}")
 fi
 
+if [[ ! -f /usr/lib/x86_64-linux-gnu/libGLESv3.so && -f /usr/lib/x86_64-linux-gnu/libGLESv2.so && -f /usr/include/GLES3/gl3.h ]]; then
+  echo "Using GLESv2 as a compatible GLES3 library for CMake discovery"
+  EXTRA_ARGS+=("-DOPENGL_gles3_LIBRARY=/usr/lib/x86_64-linux-gnu/libGLESv2.so")
+  EXTRA_ARGS+=("-DOPENGL_GLES3_INCLUDE_DIR=/usr/include")
+fi
+
+if [[ ! -f /usr/lib/aarch64-linux-gnu/libGLESv3.so && -f /usr/lib/aarch64-linux-gnu/libGLESv2.so && -f /usr/include/GLES3/gl3.h ]]; then
+  echo "Using ARM64 GLESv2 as a compatible GLES3 library for CMake discovery"
+  EXTRA_ARGS+=("-DOPENGL_gles3_LIBRARY=/usr/lib/aarch64-linux-gnu/libGLESv2.so")
+  EXTRA_ARGS+=("-DOPENGL_GLES3_INCLUDE_DIR=/usr/include")
+fi
+
 if [[ -f "$BUILD_DIR/CMakeCache.txt" ]] && ! grep -Fq "$SOURCE_DIR" "$BUILD_DIR/CMakeCache.txt"; then
   echo "Clearing incompatible CMake cache in $BUILD_DIR..."
   rm -rf "$BUILD_DIR"

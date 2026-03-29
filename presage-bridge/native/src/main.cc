@@ -138,7 +138,7 @@ absl::Status RegisterCallbacks(Container& container, bool stop_on_first_metrics)
   }
 
   if (absl::GetFlag(FLAGS_enable_edge_metrics)) {
-    auto edge_status = container.SetOnEdgeMetricsOutput([](const presage::physiology::Metrics& metrics) {
+    auto edge_status = container.SetOnEdgeMetricsOutput([](const presage::physiology::Metrics& metrics, int64_t /*input_timestamp*/) {
       if (!metrics.has_breathing() || metrics.breathing().upper_trace().empty()) {
         return absl::OkStatus();
       }
@@ -200,41 +200,19 @@ int main(int argc, char** argv) {
   absl::Status status;
 
   if (mode == "spot") {
-    settings::Settings<settings::OperationMode::Spot, settings::IntegrationMode::Rest> config{
-      vs::VideoSourceSettings{
-        absl::GetFlag(FLAGS_camera_index),
-        vs::ResolutionSelectionMode::Auto,
-        absl::GetFlag(FLAGS_capture_width),
-        absl::GetFlag(FLAGS_capture_height),
-        presage::camera::CameraResolutionRange::Unspecified_EnumEnd,
-        presage::camera::CaptureCodec::MJPG,
-        true,
-        vs::InputTransformMode::Unspecified_EnumEnd,
-        input_video_path,
-        ""
-      },
-      settings::VideoSinkSettings{},
-      true,
-      absl::GetFlag(FLAGS_interframe_delay_ms),
-      false,
-      0,
-      true,
-      true,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      false,
-      absl::GetFlag(FLAGS_verbosity),
-      settings::SpotSettings{
-        absl::GetFlag(FLAGS_spot_duration_s)
-      },
-      settings::RestSettings{
-        api_key
-      }
-    };
+    settings::Settings<settings::OperationMode::Spot, settings::IntegrationMode::Rest> config{};
+    config.video_source.device_index = absl::GetFlag(FLAGS_camera_index);
+    config.video_source.capture_width_px = absl::GetFlag(FLAGS_capture_width);
+    config.video_source.capture_height_px = absl::GetFlag(FLAGS_capture_height);
+    config.video_source.codec = presage::camera::CaptureCodec::MJPG;
+    config.video_source.auto_lock = true;
+    config.video_source.input_video_path = input_video_path;
+    config.video_source.input_video_time_path = "";
+    config.headless = true;
+    config.interframe_delay_ms = absl::GetFlag(FLAGS_interframe_delay_ms);
+    config.verbosity_level = absl::GetFlag(FLAGS_verbosity);
+    config.spot.spot_duration_s = absl::GetFlag(FLAGS_spot_duration_s);
+    config.integration.api_key = api_key;
 
     spectra::container::SpotRestForegroundContainer<presage::platform_independence::DeviceType::Cpu> container(config);
     status = RegisterCallbacks(container, true);
@@ -245,41 +223,20 @@ int main(int argc, char** argv) {
       status = container.Run();
     }
   } else {
-    settings::Settings<settings::OperationMode::Continuous, settings::IntegrationMode::Rest> config{
-      vs::VideoSourceSettings{
-        absl::GetFlag(FLAGS_camera_index),
-        vs::ResolutionSelectionMode::Auto,
-        absl::GetFlag(FLAGS_capture_width),
-        absl::GetFlag(FLAGS_capture_height),
-        presage::camera::CameraResolutionRange::Unspecified_EnumEnd,
-        presage::camera::CaptureCodec::MJPG,
-        true,
-        vs::InputTransformMode::Unspecified_EnumEnd,
-        "",
-        ""
-      },
-      settings::VideoSinkSettings{},
-      true,
-      absl::GetFlag(FLAGS_interframe_delay_ms),
-      false,
-      0,
-      true,
-      true,
-      false,
-      false,
-      false,
-      false,
-      absl::GetFlag(FLAGS_enable_edge_metrics),
-      false,
-      false,
-      absl::GetFlag(FLAGS_verbosity),
-      settings::ContinuousSettings{
-        absl::GetFlag(FLAGS_buffer_duration_s)
-      },
-      settings::RestSettings{
-        api_key
-      }
-    };
+    settings::Settings<settings::OperationMode::Continuous, settings::IntegrationMode::Rest> config{};
+    config.video_source.device_index = absl::GetFlag(FLAGS_camera_index);
+    config.video_source.capture_width_px = absl::GetFlag(FLAGS_capture_width);
+    config.video_source.capture_height_px = absl::GetFlag(FLAGS_capture_height);
+    config.video_source.codec = presage::camera::CaptureCodec::MJPG;
+    config.video_source.auto_lock = true;
+    config.video_source.input_video_path = "";
+    config.video_source.input_video_time_path = "";
+    config.headless = true;
+    config.interframe_delay_ms = absl::GetFlag(FLAGS_interframe_delay_ms);
+    config.enable_edge_metrics = absl::GetFlag(FLAGS_enable_edge_metrics);
+    config.verbosity_level = absl::GetFlag(FLAGS_verbosity);
+    config.continuous.preprocessed_data_buffer_duration_s = absl::GetFlag(FLAGS_buffer_duration_s);
+    config.integration.api_key = api_key;
 
     spectra::container::CpuContinuousRestForegroundContainer container(config);
     status = RegisterCallbacks(container, false);

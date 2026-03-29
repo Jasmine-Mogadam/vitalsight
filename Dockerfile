@@ -1,5 +1,7 @@
 ARG UBUNTU_VERSION=22.04
+ARG CMAKE_VERSION=3.27.0
 FROM ubuntu:${UBUNTU_VERSION}
+ARG CMAKE_VERSION
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
@@ -11,15 +13,49 @@ RUN apt-get update \
     libcurl4-openssl-dev \
     libssl-dev \
     libv4l-dev \
+    libunwind-dev \
+    libopengl-dev \
+    libglvnd-dev \
+    libgl-dev \
+    libegl-dev \
+    libgles-dev \
+    libgl1-mesa-dev \
+    libegl1-mesa-dev \
+    libgles2-mesa-dev \
+    mesa-common-dev \
+    libglu1-mesa-dev \
+    freeglut3-dev \
+    libx11-dev \
+    libxext-dev \
+    libxrandr-dev \
+    libxinerama-dev \
+    libxcursor-dev \
+    libxi-dev \
+    libgtk-3-dev \
+    libgtk-3-0 \
+    libdrm-dev \
+    libgbm-dev \
+    libwayland-dev \
+    wayland-protocols \
+    libprotobuf-dev \
+    protobuf-compiler \
+    libabsl-dev \
+    libgoogle-glog-dev \
+    libgflags-dev \
     gnupg \
     lsb-release \
     software-properties-common \
     build-essential \
-    cmake \
     pkg-config \
     git \
     dumb-init \
   && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL -o /tmp/cmake.sh "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.sh" \
+  && chmod +x /tmp/cmake.sh \
+  && /tmp/cmake.sh --skip-license --prefix=/usr/local \
+  && rm -f /tmp/cmake.sh \
+  && cmake --version
 
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
   && apt-get update \
@@ -32,7 +68,17 @@ RUN curl -s "https://presage-security.github.io/PPA/KEY.gpg" | gpg --dearmor > /
   && apt-get install -y --no-install-recommends libsmartspectra-dev \
   && rm -rf /var/lib/apt/lists/*
 
+RUN if [ ! -e /usr/lib/x86_64-linux-gnu/libGLESv3.so ] && [ -e /usr/lib/x86_64-linux-gnu/libGLESv2.so ]; then \
+      ln -s /usr/lib/x86_64-linux-gnu/libGLESv2.so /usr/lib/x86_64-linux-gnu/libGLESv3.so; \
+    fi \
+  && if [ ! -e /usr/lib/aarch64-linux-gnu/libGLESv3.so ] && [ -e /usr/lib/aarch64-linux-gnu/libGLESv2.so ]; then \
+      ln -s /usr/lib/aarch64-linux-gnu/libGLESv2.so /usr/lib/aarch64-linux-gnu/libGLESv3.so; \
+    fi
+
 WORKDIR /app
+
+COPY presage-bridge /app/presage-bridge
+RUN bash /app/presage-bridge/build.sh
 
 COPY frontend/package*.json /app/frontend/
 RUN npm --prefix /app/frontend ci
@@ -44,11 +90,8 @@ COPY frontend /app/frontend
 RUN npm --prefix /app/frontend run build
 
 COPY backend /app/backend
-COPY presage-bridge /app/presage-bridge
 RUN mkdir -p /app/backend/public \
   && cp -r /app/frontend/dist/. /app/backend/public/
-
-RUN bash /app/presage-bridge/build.sh
 
 COPY fly-entrypoint.sh /app/fly-entrypoint.sh
 RUN chmod +x /app/fly-entrypoint.sh
