@@ -20,7 +20,6 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS patient_profiles (
     user_id INTEGER PRIMARY KEY REFERENCES users(id),
     date_of_birth TEXT,
-    age INTEGER,
     ethnicity TEXT,
     location TEXT,
     conditions TEXT,
@@ -108,6 +107,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_form_submissions_patient ON form_submissions(patient_id, form_id);
 `);
 
+const patientProfileColumns = db.prepare("PRAGMA table_info(patient_profiles)").all();
+if (patientProfileColumns.some((column) => column.name === 'age')) {
+  db.exec('ALTER TABLE patient_profiles DROP COLUMN age');
+}
+
 const parseJSON = (value, fallback) => {
   if (value === null || value === undefined || value === '') return fallback;
   try {
@@ -137,8 +141,8 @@ const createUserStmt = db.prepare(`
   VALUES (@email, @password_hash, @role, @name)
 `);
 const insertPatientProfileStmt = db.prepare(`
-  INSERT INTO patient_profiles (user_id, date_of_birth, age, ethnicity, location, conditions, notification_prefs)
-  VALUES (@user_id, @date_of_birth, @age, @ethnicity, @location, @conditions, @notification_prefs)
+  INSERT INTO patient_profiles (user_id, date_of_birth, ethnicity, location, conditions, notification_prefs)
+  VALUES (@user_id, @date_of_birth, @ethnicity, @location, @conditions, @notification_prefs)
 `);
 const insertCoordinatorProfileStmt = db.prepare(`
   INSERT INTO coordinator_profiles (user_id, organization, title)
@@ -147,7 +151,6 @@ const insertCoordinatorProfileStmt = db.prepare(`
 const updatePatientProfileStmt = db.prepare(`
   UPDATE patient_profiles
   SET date_of_birth = @date_of_birth,
-      age = @age,
       ethnicity = @ethnicity,
       location = @location,
       conditions = @conditions,
@@ -206,7 +209,6 @@ function createUserWithProfile({ email, passwordHash, role, name, profile = {} }
       insertPatientProfileStmt.run({
         user_id: userId,
         date_of_birth: profile.date_of_birth || null,
-        age: Number.isInteger(profile.age) ? profile.age : null,
         ethnicity: profile.ethnicity || null,
         location: profile.location || null,
         conditions: JSON.stringify(Array.isArray(profile.conditions) ? profile.conditions : []),
@@ -234,7 +236,6 @@ function updatePatientProfile(userId, updates = {}) {
   const current = getPatientProfileStmt.get(userId);
   const next = {
     date_of_birth: updates.date_of_birth ?? current?.date_of_birth ?? null,
-    age: updates.age ?? current?.age ?? null,
     ethnicity: updates.ethnicity ?? current?.ethnicity ?? null,
     location: updates.location ?? current?.location ?? null,
     conditions: JSON.stringify(

@@ -8,7 +8,6 @@ export default function PatientOnboarding() {
   const navigate = useNavigate();
   const [form, setForm] = useState({
     date_of_birth: '',
-    age: '',
     ethnicity: '',
     location: '',
     conditions: '',
@@ -26,7 +25,6 @@ export default function PatientOnboarding() {
         method: 'PUT',
         body: JSON.stringify({
           date_of_birth: form.date_of_birth,
-          age: form.age ? Number(form.age) : null,
           ethnicity: form.ethnicity,
           location: form.location,
           conditions: form.conditions.split(',').map((item) => item.trim()).filter(Boolean),
@@ -59,10 +57,6 @@ export default function PatientOnboarding() {
         <label>
           Date of birth
           <input type="date" value={form.date_of_birth} onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })} />
-        </label>
-        <label>
-          Age
-          <input type="number" value={form.age} onChange={(e) => setForm({ ...form, age: e.target.value })} />
         </label>
         <label>
           Ethnicity

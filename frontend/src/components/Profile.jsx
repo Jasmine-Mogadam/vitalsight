@@ -58,10 +58,6 @@ export default function Profile() {
               <input type="date" value={profile.date_of_birth || ''} onChange={(e) => setProfile({ ...profile, date_of_birth: e.target.value })} />
             </label>
             <label>
-              Age
-              <input type="number" value={profile.age || ''} onChange={(e) => setProfile({ ...profile, age: e.target.value })} />
-            </label>
-            <label>
               Ethnicity
               <input value={profile.ethnicity || ''} onChange={(e) => setProfile({ ...profile, ethnicity: e.target.value })} />
             </label>

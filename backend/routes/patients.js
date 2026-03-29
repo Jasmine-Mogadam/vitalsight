@@ -11,10 +11,9 @@ router.get('/profile', (req, res) => {
 });
 
 router.put('/profile', (req, res) => {
-  const { date_of_birth, age, ethnicity, location, conditions, notification_prefs } = req.body || {};
+  const { date_of_birth, ethnicity, location, conditions, notification_prefs } = req.body || {};
   const user = updatePatientProfile(req.user.id, {
     date_of_birth,
-    age: age === '' || age === undefined || age === null ? null : Number(age),
     ethnicity,
     location,
     conditions: Array.isArray(conditions)
