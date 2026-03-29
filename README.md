@@ -114,7 +114,8 @@ Important variables:
 - `SOLANA_PRIVATE_KEY` for `/api/log-vitals`
 - `B2_KEY_ID`, `B2_APP_KEY`, `B2_BUCKET_ID` for `/api/store-vitals`
 - `PRESAGE_API_KEY`, `PRESAGE_BRIDGE_URL`, `PRESAGE_TIMEOUT_MS` for live bridge mode
-- `PRESAGE_BRIDGE_MODE=mock` if you are using the bundled local bridge as-is
+- `PRESAGE_BRIDGE_MODE=mock` for generated vitals or `PRESAGE_BRIDGE_MODE=sdk` to launch the bundled SmartSpectra native runner
+- `PRESAGE_SDK_*` variables configure the local camera-backed SmartSpectra runner in `sdk` mode
 - `GEOAPIFY_API_KEY` for location autocomplete
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` for reminder emails
 
@@ -139,9 +140,62 @@ The monitor experience is intentionally hybrid:
 
 - MediaPipe Face Mesh drives the browser AR overlay
 - the monitor can fall back to simulated demo vitals
-- the bundled `presage-bridge` runs in mock mode for local end-to-end demos
-- the backend is structured to forward captured frames to a real Presage bridge when available
+- the bundled `presage-bridge` can run in mock mode or launch a local SmartSpectra SDK worker
+- in `sdk` mode the bridge serves the latest local camera metrics over the same `/measure` API used by the backend
+- in local Vite dev, the monitor now records a short browser clip and sends it to the bridge for a SmartSpectra spot measurement when live camera polling is not practical on macOS
 - Gemini, ElevenLabs, Solana, and B2 are optional integrations layered on top of the measurement flow
+
+### Building the native Presage bridge
+
+The SDK-backed bridge expects a compiled runner at `presage-bridge/native/build/smartspectra_bridge`.
+
+```bash
+npm run build:presage-bridge
+```
+
+If CMake cannot find the SmartSpectra SDK, point it at the installed package first:
+
+```bash
+SMARTSPECTRA_DIR=/path/to/dir-containing-SmartSpectraConfig.cmake npm run build:presage-bridge
+```
+
+or:
+
+```bash
+CMAKE_PREFIX_PATH=/path/to/sdk/prefix npm run build:presage-bridge
+```
+
+Then set:
+
+```bash
+PRESAGE_BRIDGE_MODE=sdk
+PRESAGE_BRIDGE_URL=http://127.0.0.1:8787
+```
+
+The Node bridge will start the native worker automatically and expose the same `GET /health` and `POST /measure` endpoints the backend already uses.
+
+### macOS local dev
+
+On macOS, `npm run dev` now starts the Presage bridge in an Ubuntu Docker container by default. That container installs `libsmartspectra-dev`, builds the native runner, and exposes the bridge on `http://127.0.0.1:8787`.
+
+Requirements:
+
+- Docker Desktop running
+- `backend/.env` present with `PRESAGE_BRIDGE_MODE=sdk`
+
+Useful commands:
+
+```bash
+npm run build:presage-bridge:docker
+npm run dev
+npm run stop:presage-bridge
+```
+
+If you ever want to run the bridge directly on the host instead, use:
+
+```bash
+npm run dev:presage-bridge:host
+```
 
 ## Security and privacy touches
 
@@ -155,7 +209,14 @@ The monitor experience is intentionally hybrid:
 
 ## Deployment
 
-The app is set up for a single Fly.io deployment using the included `Dockerfile` and `deploy.sh`. The frontend is built first, copied into the backend `public/` directory, and then served by Express alongside the API.
+The app is set up for a single Fly.io deployment using the included `Dockerfile` and `deploy.sh`.
+
+For Fly specifically, the root `Dockerfile` now uses Ubuntu, installs `libsmartspectra-dev`, builds `presage-bridge/native/build/smartspectra_bridge`, and starts both:
+
+- Presage bridge on `127.0.0.1:8787`
+- backend API on `0.0.0.0:3001`
+
+The backend is configured to call the in-container bridge (`PRESAGE_BRIDGE_URL=http://127.0.0.1:8787`). In production, video clip uploads to `/api/presage/measure` are enabled by default (`PRESAGE_ALLOW_VIDEO_UPLOAD_IN_PRODUCTION=true`) so Fly can run SDK spot measurements even when image polling is unavailable.
 
 ## Devpost draft
 

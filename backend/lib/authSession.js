@@ -5,8 +5,15 @@ const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const SESSION_TTL_SECONDS = SESSION_TTL_MS / 1000;
 const SESSION_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 
+function isSecureRequest(req) {
+  const forwardedProto = typeof req.headers['x-forwarded-proto'] === 'string'
+    ? req.headers['x-forwarded-proto'].split(',')[0].trim().toLowerCase()
+    : '';
+  return Boolean(req.secure) || forwardedProto === 'https';
+}
+
 function getRequestOrigin(req) {
-  const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  const protocol = isSecureRequest(req) ? 'https' : 'http';
   return `${protocol}://${req.get('host')}`;
 }
 
@@ -14,11 +21,12 @@ function cookieOptions(req) {
   const requestOrigin = getRequestOrigin(req);
   const callerOrigin = typeof req.headers.origin === 'string' ? req.headers.origin.trim().replace(/\/+$/, '') : '';
   const isCrossOrigin = Boolean(callerOrigin) && callerOrigin !== requestOrigin;
+  const secure = process.env.NODE_ENV === 'production' || isSecureRequest(req);
 
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: isCrossOrigin ? 'none' : 'strict',
+    secure,
+    sameSite: isCrossOrigin && secure ? 'none' : 'strict',
     path: '/',
     maxAge: SESSION_TTL_MS,
   };

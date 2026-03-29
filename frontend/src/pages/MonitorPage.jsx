@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, apiFetch } from '../lib/api';
 
+const PRESAGE_CLIP_MEASUREMENT_MS = 30000;
+
 const LANDMARKS = {
   forehead: 10,
   noseTip: 1,
@@ -37,6 +39,7 @@ export default function MonitorPage() {
   const faceMeshRef = useRef(null);
   const cameraUtilRef = useRef(null);
   const latestVitalsRef = useRef(null);
+  const localClipMeasurementRunningRef = useRef(false);
   const [cameraOn, setCameraOn] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
   const [vitals, setVitals] = useState(null);
@@ -224,6 +227,96 @@ export default function MonitorPage() {
     return captureCanvas.toDataURL('image/jpeg', 0.85);
   };
 
+  const recordMeasurementClip = useCallback(async (durationMs = PRESAGE_CLIP_MEASUREMENT_MS) => {
+    const stream = videoRef.current?.srcObject;
+    if (!stream || typeof MediaRecorder === 'undefined') {
+      throw new Error('Browser recording support is unavailable for Presage clip measurements.');
+    }
+
+    const preferredMimeType = [
+      'video/webm;codecs=vp9',
+      'video/webm;codecs=vp8',
+      'video/webm',
+      'video/mp4',
+    ].find((mimeType) => MediaRecorder.isTypeSupported?.(mimeType));
+
+    const chunks = [];
+
+    return new Promise((resolve, reject) => {
+      const recorder = preferredMimeType
+        ? new MediaRecorder(stream, { mimeType: preferredMimeType, videoBitsPerSecond: 1_200_000 })
+        : new MediaRecorder(stream);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data?.size) {
+          chunks.push(event.data);
+        }
+      };
+
+      recorder.onerror = () => {
+        reject(new Error('Failed to record a local Presage clip.'));
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: recorder.mimeType || preferredMimeType || 'video/webm' });
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          resolve(reader.result);
+        };
+        reader.onerror = () => {
+          reject(new Error('Failed to prepare the local Presage clip.'));
+        };
+        reader.readAsDataURL(blob);
+      };
+
+      recorder.start();
+      window.setTimeout(() => {
+        if (recorder.state !== 'inactive') {
+          recorder.stop();
+        }
+      }, durationMs);
+    });
+  }, []);
+
+  const runClipMeasurement = useCallback(async () => {
+    if (localClipMeasurementRunningRef.current) {
+      return true;
+    }
+
+    localClipMeasurementRunningRef.current = true;
+
+    try {
+      setVitals(null);
+      const video = await recordMeasurementClip();
+      const response = await apiFetch('/api/presage/measure', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          video,
+          sessionId: sessionIdRef.current,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Presage video measurement failed');
+      }
+
+      console.debug('[monitor] presage-clip-measure-success', data.vitals);
+      setVitals((current) => ({
+        ...current,
+        ...data.vitals,
+      }));
+      return true;
+    } catch (error) {
+      enableDemoMode(error.message || 'Presage video measurement failed. Falling back to demo vitals.');
+      return false;
+    } finally {
+      localClipMeasurementRunningRef.current = false;
+    }
+  }, [enableDemoMode, recordMeasurementClip]);
+
   const pollPresage = useCallback(async () => {
     const image = captureFrame();
 
@@ -332,10 +425,24 @@ export default function MonitorPage() {
       setVitals(randomVitals());
 
       if (presageStatus.ready) {
-        await pollPresage();
-        intervalRef.current = setInterval(() => {
-          pollPresage();
-        }, 3000);
+        const shouldUseClipMeasurement = Boolean(
+          presageStatus.mode === 'sdk'
+            && presageStatus.capabilities?.videoUpload
+            && !presageStatus.capabilities?.imagePolling
+        );
+
+        if (shouldUseClipMeasurement) {
+          setVitals(null);
+          await runClipMeasurement();
+          intervalRef.current = setInterval(() => {
+            runClipMeasurement();
+          }, PRESAGE_CLIP_MEASUREMENT_MS + 5000);
+        } else {
+          await pollPresage();
+          intervalRef.current = setInterval(() => {
+            pollPresage();
+          }, 3000);
+        }
       } else {
         enableDemoMode(presageStatus.message);
       }
@@ -343,7 +450,7 @@ export default function MonitorPage() {
       console.debug('[monitor] start-camera-failed', error);
       setCameraOn(false);
     }
-  }, [drawArOverlay, enableDemoMode, pollPresage, presageStatus]);
+  }, [drawArOverlay, enableDemoMode, pollPresage, presageStatus, runClipMeasurement]);
 
   const runAnalysis = async () => {
     if (!vitals) return;

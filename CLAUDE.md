@@ -131,7 +131,9 @@ Required or important values:
 - `SOLANA_PRIVATE_KEY` enables memo logging on devnet
 - `B2_KEY_ID`, `B2_APP_KEY`, `B2_BUCKET_ID` enable vitals storage
 - `PRESAGE_API_KEY` and `PRESAGE_BRIDGE_URL` enable live bridge measurement
-- `PRESAGE_BRIDGE_MODE=mock` supports the bundled local bridge path
+- `PRESAGE_BRIDGE_MODE=mock` uses generated vitals, while `PRESAGE_BRIDGE_MODE=sdk` launches the bundled native SmartSpectra runner
+- `PRESAGE_SDK_*` variables configure the local camera-backed SmartSpectra worker
+- on macOS local dev, the default `npm run dev` path now runs the Presage bridge in Docker via `npm run dev:presage-bridge`
 - `GEOAPIFY_API_KEY` enables location autocomplete
 - `SMTP_*` values enable reminder email delivery
 
@@ -161,6 +163,7 @@ Notable recent evolutions reflected in the schema:
 - Auth is cookie-based, not localStorage-based
 - session recovery is intentionally built into the frontend fetch layer and auth context
 - the scheduler runs hourly and creates both inbox items and optional emails
-- the bundled Presage bridge currently supports `mock` mode only, but the backend/client contract is already separated out for a real implementation
+- the bundled Presage bridge now supports `mock` mode and an `sdk` mode that launches a local SmartSpectra worker and serves its latest metrics over HTTP
+- local Vite dev can use recorded browser clips for spot measurements while production keeps the existing streaming-oriented path
 - the landing page and docs now describe VitalSight as a clinical trial operations platform, not only an AR vitals monitor
 - the top-level README and `DEVPOST.md` are now the best quick-reference docs for external readers

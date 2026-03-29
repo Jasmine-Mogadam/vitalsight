@@ -7,3 +7,4 @@ backend/public
 *.md
 .env
 backend/.env
+presage-bridge/native/build

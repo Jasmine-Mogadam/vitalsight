@@ -17,6 +17,22 @@ function pickNumber(...values) {
   return null;
 }
 
+function parseBoolean(value, fallback = false) {
+  if (value === null || value === undefined || value === '') {
+    return fallback;
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(normalized)) {
+    return true;
+  }
+  if (['0', 'false', 'no', 'off'].includes(normalized)) {
+    return false;
+  }
+
+  return fallback;
+}
+
 function getConfig() {
   return {
     apiKey: process.env.PRESAGE_API_KEY?.trim() || '',
@@ -25,20 +41,82 @@ function getConfig() {
   };
 }
 
-function getPresageStatus() {
-  const config = getConfig();
+function canUseVideoUploadFallback() {
+  if (process.env.NODE_ENV !== 'production') {
+    return true;
+  }
+
+  return parseBoolean(process.env.PRESAGE_ALLOW_VIDEO_UPLOAD_IN_PRODUCTION, true);
+}
+
+function baseStatus(config) {
   const hasApiKey = Boolean(config.apiKey);
   const hasBridgeUrl = Boolean(config.bridgeUrl);
-  const ready = hasApiKey && hasBridgeUrl;
+  const configured = hasApiKey && hasBridgeUrl;
 
   return {
-    provider: ready ? 'presage-bridge' : 'demo',
-    ready,
+    provider: configured ? 'presage-bridge' : 'demo',
+    ready: false,
+    configured,
     hasApiKey,
     hasBridgeUrl,
-    message: ready
-      ? 'Presage bridge is configured.'
+    message: configured
+      ? 'Presage bridge is configured but not reachable.'
       : 'Set PRESAGE_API_KEY and PRESAGE_BRIDGE_URL to enable live Presage vitals.',
+  };
+}
+
+async function getPresageStatus() {
+  const config = getConfig();
+  const status = baseStatus(config);
+
+  if (!status.configured) {
+    return status;
+  }
+
+  let response;
+  try {
+    response = await fetch(`${config.bridgeUrl}/health`, {
+      signal: AbortSignal.timeout(Math.min(config.timeoutMs, 5000)),
+    });
+  } catch (error) {
+    return {
+      ...status,
+      message: `Presage bridge is unavailable at ${config.bridgeUrl}. Start the bridge service or switch to demo mode.`,
+      details: {
+        code: error?.code || error?.cause?.code || null,
+        bridgeUrl: config.bridgeUrl,
+      },
+    };
+  }
+
+  const payload = await readJson(response);
+  if (!response.ok) {
+    return {
+      ...status,
+      message: payload?.error || payload?.message || 'Presage bridge health check failed.',
+      details: payload,
+    };
+  }
+
+  const supportsVideoUploadFallback = canUseVideoUploadFallback() && Boolean(payload?.capabilities?.videoUpload);
+
+  return {
+    provider: 'presage-bridge',
+    ready: payload?.status === 'ok' || supportsVideoUploadFallback,
+    configured: true,
+    hasApiKey: status.hasApiKey,
+    hasBridgeUrl: status.hasBridgeUrl,
+    mode: payload?.mode || null,
+    capabilities: payload?.capabilities || null,
+    message: payload?.status === 'ok'
+      ? payload?.mode === 'sdk'
+        ? 'Presage bridge is live and backed by the SmartSpectra SDK.'
+        : 'Presage bridge is configured.'
+      : supportsVideoUploadFallback
+        ? 'Presage bridge supports spot measurements from recorded video clips.'
+        : (payload?.error || 'Presage bridge is configured but not fully ready.'),
+    details: payload?.worker || null,
   };
 }
 
@@ -94,18 +172,22 @@ async function readJson(response) {
   }
 }
 
-async function measureVitals({ image, sessionId, timestamp }) {
+async function measureVitals({ image, video, sessionId, timestamp }) {
   const config = getConfig();
-  const status = getPresageStatus();
+  const status = await getPresageStatus();
+  const allowVideoUpload = Boolean(video)
+    && canUseVideoUploadFallback()
+    && Boolean(status.capabilities?.videoUpload);
 
-  if (!status.ready) {
+  if (!status.ready && !allowVideoUpload) {
     const error = new Error(status.message);
     error.statusCode = 503;
+    error.details = status.details || null;
     throw error;
   }
 
-  if (!image) {
-    const error = new Error('image is required');
+  if (!image && !video) {
+    const error = new Error('image or video is required');
     error.statusCode = 400;
     throw error;
   }
@@ -121,6 +203,7 @@ async function measureVitals({ image, sessionId, timestamp }) {
       signal: AbortSignal.timeout(config.timeoutMs),
       body: JSON.stringify({
         image,
+        video,
         sessionId,
         timestamp,
       }),

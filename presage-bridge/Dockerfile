@@ -8,22 +8,19 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
-    libcurl4-openssl-dev \
-    libssl-dev \
-    libv4l-dev \
     gnupg \
     lsb-release \
     software-properties-common \
-    build-essential \
-    cmake \
-    pkg-config \
-    git \
-    dumb-init \
   && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
   && apt-get update \
-  && apt-get install -y --no-install-recommends nodejs \
+  && apt-get install -y --no-install-recommends \
+    nodejs \
+    build-essential \
+    cmake \
+    pkg-config \
+    git \
   && rm -rf /var/lib/apt/lists/*
 
 RUN curl -s "https://presage-security.github.io/PPA/KEY.gpg" | gpg --dearmor > /etc/apt/trusted.gpg.d/presage-technologies.gpg \
@@ -34,34 +31,10 @@ RUN curl -s "https://presage-security.github.io/PPA/KEY.gpg" | gpg --dearmor > /
 
 WORKDIR /app
 
-COPY frontend/package*.json /app/frontend/
-RUN npm --prefix /app/frontend ci
-
-COPY backend/package*.json /app/backend/
-RUN npm --prefix /app/backend ci --omit=dev
-
-COPY frontend /app/frontend
-RUN npm --prefix /app/frontend run build
-
-COPY backend /app/backend
 COPY presage-bridge /app/presage-bridge
-RUN mkdir -p /app/backend/public \
-  && cp -r /app/frontend/dist/. /app/backend/public/
 
 RUN bash /app/presage-bridge/build.sh
 
-COPY fly-entrypoint.sh /app/fly-entrypoint.sh
-RUN chmod +x /app/fly-entrypoint.sh
+EXPOSE 8787
 
-ENV NODE_ENV=production
-ENV PORT=3001
-ENV PRESAGE_BRIDGE_URL=http://127.0.0.1:8787
-ENV PRESAGE_BRIDGE_HOST=127.0.0.1
-ENV PRESAGE_BRIDGE_PORT=8787
-ENV PRESAGE_BRIDGE_MODE=sdk
-ENV PRESAGE_ALLOW_VIDEO_UPLOAD_IN_PRODUCTION=true
-
-EXPOSE 3001
-
-ENTRYPOINT ["dumb-init", "--"]
-CMD ["/app/fly-entrypoint.sh"]
+CMD ["node", "/app/presage-bridge/server.cjs"]
