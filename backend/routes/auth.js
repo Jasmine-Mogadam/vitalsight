@@ -12,27 +12,36 @@ function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value || '');
 }
 
-function cookieOptions() {
+function getRequestOrigin(req) {
+  const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+  return `${protocol}://${req.get('host')}`;
+}
+
+function cookieOptions(req) {
+  const requestOrigin = getRequestOrigin(req);
+  const callerOrigin = typeof req.headers.origin === 'string' ? req.headers.origin.trim().replace(/\/+$/, '') : '';
+  const isCrossOrigin = Boolean(callerOrigin) && callerOrigin !== requestOrigin;
+
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite: isCrossOrigin ? 'none' : 'strict',
+    path: '/',
     maxAge: 7 * 24 * 60 * 60 * 1000,
   };
 }
 
-function setAuthCookie(res, user) {
+function setAuthCookie(req, res, user) {
   const token = jwt.sign({ id: user.id, role: user.role }, getJwtSecret(), {
     expiresIn: '7d',
   });
-  res.cookie('token', token, cookieOptions());
+  res.cookie('token', token, cookieOptions(req));
 }
 
-function clearAuthCookie(res) {
+function clearAuthCookie(req, res) {
   res.clearCookie('token', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    ...cookieOptions(req),
+    maxAge: undefined,
   });
 }
 
@@ -74,7 +83,7 @@ router.post('/register', authRateLimit, async (req, res) => {
     }
   }
 
-  setAuthCookie(res, user);
+  setAuthCookie(req, res, user);
   res.status(201).json({ user });
 });
 
@@ -95,12 +104,12 @@ router.post('/login', authRateLimit, async (req, res) => {
   }
 
   const hydrated = getUserWithProfile(user.id);
-  setAuthCookie(res, hydrated);
+  setAuthCookie(req, res, hydrated);
   res.json({ user: hydrated });
 });
 
-router.post('/logout', (_req, res) => {
-  clearAuthCookie(res);
+router.post('/logout', (req, res) => {
+  clearAuthCookie(req, res);
   res.json({ success: true });
 });
 
@@ -176,7 +185,7 @@ router.delete('/account', requireAuth, (req, res) => {
     deleteCoordinator();
   }
 
-  clearAuthCookie(res);
+  clearAuthCookie(req, res);
   res.json({ success: true });
 });
 
