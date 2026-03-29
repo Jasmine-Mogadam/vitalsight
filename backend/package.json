@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node scripts/dev.cjs"
   },
   "keywords": [],
   "author": "",
