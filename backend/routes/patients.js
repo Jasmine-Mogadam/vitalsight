@@ -1,0 +1,43 @@
+const express = require('express');
+const { requireRole } = require('../middleware/auth');
+const { updatePatientProfile } = require('../db');
+
+const router = express.Router();
+
+router.use(requireRole('patient'));
+
+router.get('/profile', (req, res) => {
+  res.json({ profile: req.user.profile || null });
+});
+
+router.put('/profile', (req, res) => {
+  const { date_of_birth, age, ethnicity, location, conditions, notification_prefs } = req.body || {};
+  const user = updatePatientProfile(req.user.id, {
+    date_of_birth,
+    age: age === '' || age === undefined || age === null ? null : Number(age),
+    ethnicity,
+    location,
+    conditions: Array.isArray(conditions)
+      ? conditions
+      : typeof conditions === 'string'
+        ? conditions.split(',').map((item) => item.trim()).filter(Boolean)
+        : undefined,
+    notification_prefs,
+  });
+
+  res.json({ profile: user.profile, user });
+});
+
+router.get('/notifications', (req, res) => {
+  res.json({ preferences: req.user.profile?.notification_prefs || {} });
+});
+
+router.put('/notifications', (req, res) => {
+  const user = updatePatientProfile(req.user.id, {
+    notification_prefs: req.body || {},
+  });
+
+  res.json({ preferences: user.profile?.notification_prefs || {}, user });
+});
+
+module.exports = router;

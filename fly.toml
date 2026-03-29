@@ -13,3 +13,4 @@ primary_region = 'ord'
 
 [env]
   PORT = '3001'
+  FRONTEND_ORIGIN = 'https://vitalsight-api.fly.dev'
