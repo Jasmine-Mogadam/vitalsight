@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
+import InfoTip from './InfoTip';
+import Toast from './Toast';
+import {
+  COMPENSATION_OPTIONS,
+  PAYMENT_STRUCTURE_OPTIONS,
+  getTrialSearchPreview,
+} from '../lib/trialCompensation';
 
 export default function TrialManagement() {
   const { id } = useParams();
@@ -10,6 +17,7 @@ export default function TrialManagement() {
   const [form, setForm] = useState({});
   const [inviteForm, setInviteForm] = useState({ uses_remaining: 1, prefillName: '', prefillEmail: '' });
   const [error, setError] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
 
   useEffect(() => {
     let active = true;
@@ -45,6 +53,8 @@ export default function TrialManagement() {
         body: JSON.stringify(form),
       });
       setTrial(result.trial);
+      setForm(result.trial);
+      setToastMessage('Trial changes saved.');
     } catch (err) {
       setError(err.message);
     }
@@ -76,6 +86,16 @@ export default function TrialManagement() {
       });
       setInviteForm({ uses_remaining: 1, prefillName: '', prefillEmail: '' });
       await load();
+      setToastMessage('Invite link created.');
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const copyInviteLink = async (token) => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/join/${token}`);
+      setToastMessage('Invite link copied.');
     } catch (err) {
       setError(err.message);
     }
@@ -84,6 +104,8 @@ export default function TrialManagement() {
   if (!trial) {
     return <div className="page-shell"><div className="empty-state">Loading trial...</div></div>;
   }
+
+  const preview = getTrialSearchPreview(form);
 
   return (
     <div className="page-shell">
@@ -105,6 +127,14 @@ export default function TrialManagement() {
               <textarea value={form.description || ''} onChange={(e) => setForm({ ...form, description: e.target.value })} />
             </label>
             <label>
+              Trial start date
+              <input type="date" value={form.start_date || ''} onChange={(e) => setForm({ ...form, start_date: e.target.value })} />
+            </label>
+            <label>
+              Applications close
+              <input type="date" value={form.applications_close_at || ''} onChange={(e) => setForm({ ...form, applications_close_at: e.target.value })} />
+            </label>
+            <label>
               Status
               <select value={form.status || 'active'} onChange={(e) => setForm({ ...form, status: e.target.value })}>
                 <option value="active">Active</option>
@@ -116,6 +146,88 @@ export default function TrialManagement() {
               <input type="checkbox" checked={Boolean(form.is_private)} onChange={(e) => setForm({ ...form, is_private: e.target.checked })} />
               Private invite-only trial
             </label>
+            <label>
+              <span className="field-title-with-tip">
+                Compensation
+                <InfoTip
+                  label="Compensation help"
+                  content="Choose whether this trial offers reimbursements, stipends, incentives, or no compensation."
+                />
+              </span>
+              <select
+                value={form.compensation_type || 'none'}
+                onChange={(e) => setForm({
+                  ...form,
+                  compensation_type: e.target.value,
+                  payment_structure: e.target.value === 'none' ? null : form.payment_structure,
+                })}
+              >
+                {COMPENSATION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </select>
+              <div className="inline-option-list">
+                {COMPENSATION_OPTIONS.map((option) => (
+                  <span className="inline-option-hint" key={option.value}>
+                    {option.label}
+                    <InfoTip label={`${option.label} help`} content={option.help} />
+                  </span>
+                ))}
+              </div>
+            </label>
+            {(form.compensation_type || 'none') !== 'none' && (
+              <label>
+                <span className="field-title-with-tip">
+                  Payment structure
+                  <InfoTip
+                    label="Payment structure help"
+                    content="Choose whether compensation is paid once at the end or across milestones and visits."
+                  />
+                </span>
+                <select
+                  value={form.payment_structure || ''}
+                  onChange={(e) => setForm({ ...form, payment_structure: e.target.value })}
+                >
+                  <option value="">Select a structure</option>
+                  {PAYMENT_STRUCTURE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <div className="inline-option-list">
+                  {PAYMENT_STRUCTURE_OPTIONS.map((option) => (
+                    <span className="inline-option-hint" key={option.value}>
+                      {option.label}
+                      <InfoTip label={`${option.label} help`} content={option.help} />
+                    </span>
+                  ))}
+                </div>
+              </label>
+            )}
+            <label>
+              Compensation details
+              <textarea
+                value={form.compensation_details || ''}
+                onChange={(e) => setForm({ ...form, compensation_details: e.target.value })}
+                placeholder="Examples: reimbursed parking, $75 stipend per visit, completion bonus"
+              />
+            </label>
+            <div className="preview-card">
+              <p className="eyebrow">Search preview</p>
+              <div className="list-card tall search-preview-card">
+                <div>
+                  <h3>{form.name || 'Untitled trial'}</h3>
+                  <p className="muted-text">{form.description || 'Your description will appear here in trial discovery.'}</p>
+                  <p className="muted-text">Type: {preview.type}</p>
+                  <p className="muted-text">{preview.compensationLine}</p>
+                  <div className="tag-row">
+                    {preview.tags.map((tag) => (
+                      <span className="tag-chip" key={tag}>{tag}</span>
+                    ))}
+                    {form.is_private && <span className="tag-chip subtle">Private</span>}
+                  </div>
+                </div>
+              </div>
+            </div>
             {error && <p className="error-text">{error}</p>}
             <button className="primary-btn" type="submit">Save changes</button>
             <Link className="secondary-btn" to={`/trials/${trial.id}/forms`}>Manage forms</Link>
@@ -170,9 +282,14 @@ export default function TrialManagement() {
           <h2>Share these URLs</h2>
           <div className="stack-list">
             {invites.map((invite) => (
-              <div className="list-card tall" key={invite.id}>
-                <div>
-                  <h3>/join/{invite.token}</h3>
+              <div className="list-card tall invite-pill-card" key={invite.id}>
+                <button className="secondary-btn invite-copy-btn" type="button" onClick={() => copyInviteLink(invite.token)}>
+                  Copy
+                </button>
+                <div className="invite-pill-content">
+                  <h3 className="truncate-text">{invite.prefill_data?.name || `/join/${invite.token}`}</h3>
+                  <p className="muted-text truncate-text">{`${window.location.origin}/join/${invite.token}`}</p>
+                  {invite.prefill_data?.email && <p className="muted-text">{invite.prefill_data.email}</p>}
                   <p className="muted-text">Uses remaining: {invite.uses_remaining ?? 'unlimited'}</p>
                 </div>
               </div>
@@ -181,6 +298,7 @@ export default function TrialManagement() {
           </div>
         </article>
       </section>
+      <Toast message={toastMessage} onClose={() => setToastMessage('')} />
     </div>
   );
 }

@@ -40,6 +40,11 @@ db.exec(`
     type TEXT,
     reward_type TEXT CHECK(reward_type IN ('money','volunteer_hours','none')),
     reward_desc TEXT,
+    compensation_type TEXT,
+    payment_structure TEXT,
+    compensation_details TEXT,
+    start_date TEXT,
+    applications_close_at TEXT,
     is_private INTEGER DEFAULT 0,
     status TEXT DEFAULT 'active',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -111,6 +116,33 @@ const patientProfileColumns = db.prepare("PRAGMA table_info(patient_profiles)").
 if (patientProfileColumns.some((column) => column.name === 'age')) {
   db.exec('ALTER TABLE patient_profiles DROP COLUMN age');
 }
+
+const trialColumns = db.prepare("PRAGMA table_info(trials)").all();
+if (!trialColumns.some((column) => column.name === 'compensation_type')) {
+  db.exec("ALTER TABLE trials ADD COLUMN compensation_type TEXT");
+}
+if (!trialColumns.some((column) => column.name === 'payment_structure')) {
+  db.exec("ALTER TABLE trials ADD COLUMN payment_structure TEXT");
+}
+if (!trialColumns.some((column) => column.name === 'compensation_details')) {
+  db.exec("ALTER TABLE trials ADD COLUMN compensation_details TEXT");
+}
+if (!trialColumns.some((column) => column.name === 'start_date')) {
+  db.exec("ALTER TABLE trials ADD COLUMN start_date TEXT");
+}
+if (!trialColumns.some((column) => column.name === 'applications_close_at')) {
+  db.exec("ALTER TABLE trials ADD COLUMN applications_close_at TEXT");
+}
+
+db.exec(`
+  UPDATE trials
+  SET compensation_type = CASE reward_type
+    WHEN 'money' THEN 'stipend'
+    WHEN 'volunteer_hours' THEN 'incentive'
+    ELSE 'none'
+  END
+  WHERE compensation_type IS NULL
+`);
 
 const parseJSON = (value, fallback) => {
   if (value === null || value === undefined || value === '') return fallback;

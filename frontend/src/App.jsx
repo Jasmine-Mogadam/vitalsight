@@ -9,6 +9,7 @@ import Register from './components/Register';
 import PatientOnboarding from './components/PatientOnboarding';
 import Dashboard from './components/Dashboard';
 import DiscoveryTab from './components/DiscoveryTab';
+import TrialDetails from './components/TrialDetails';
 import Inbox from './components/Inbox';
 import TrialManagement from './components/TrialManagement';
 import FormBuilder from './components/FormBuilder';
@@ -58,12 +59,9 @@ export default function App() {
             />
             <Route
               path="/discover"
-              element={
-                <ProtectedRoute>
-                  <DiscoveryTab />
-                </ProtectedRoute>
-              }
+              element={<DiscoveryTab />}
             />
+            <Route path="/discover/:id" element={<TrialDetails />} />
             <Route
               path="/inbox"
               element={

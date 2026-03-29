@@ -135,8 +135,27 @@ router.patch('/:id', requireRole('coordinator'), (req, res) => {
     WHERE id = @id
   `).run(next);
 
+  if (Array.isArray(req.body.schedules)) {
+    db.prepare('DELETE FROM form_schedules WHERE form_id = ?').run(form.id);
+    for (const schedule of req.body.schedules) {
+      db.prepare(`
+        INSERT INTO form_schedules (form_id, schedule_type, schedule_config, notify_email)
+        VALUES (?, ?, ?, ?)
+      `).run(
+        form.id,
+        schedule.schedule_type,
+        JSON.stringify(schedule.schedule_config || {}),
+        schedule.notify_email === false ? 0 : 1
+      );
+    }
+  }
+
   const updated = db.prepare('SELECT * FROM forms WHERE id = ?').get(form.id);
-  res.json({ form: { ...updated, fields: parseJSON(updated.fields, []) } });
+  const schedules = db.prepare('SELECT * FROM form_schedules WHERE form_id = ?').all(form.id).map((schedule) => ({
+    ...schedule,
+    schedule_config: parseJSON(schedule.schedule_config, {}),
+  }));
+  res.json({ form: { ...updated, fields: parseJSON(updated.fields, []), schedules } });
 });
 
 router.delete('/:id', requireRole('coordinator'), (req, res) => {
