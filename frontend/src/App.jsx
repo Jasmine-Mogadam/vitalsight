@@ -17,6 +17,8 @@ import Profile from './components/Profile';
 import JoinTrial from './components/JoinTrial';
 import MonitorPage from './pages/MonitorPage';
 import SyntheticDataPage from './pages/SyntheticDataPage';
+import BusinessPlanPage from './pages/BusinessPlanPage';
+import SocialImpactPage from './pages/SocialImpactPage';
 
 export default function App() {
   return (
@@ -26,6 +28,8 @@ export default function App() {
           <NavBar />
           <Routes>
             <Route path="/" element={<Landing />} />
+            <Route path="/business-plan" element={<BusinessPlanPage />} />
+            <Route path="/social-impact" element={<SocialImpactPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="/join/:token" element={<JoinTrial />} />

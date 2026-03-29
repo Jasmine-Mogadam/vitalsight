@@ -1,4 +1,4 @@
-import logoImage from '../assets/logo.png';
+import logoImage from '../assets/logo.svg';
 
 export default function Logo({ subtitle, className = '', imageClassName = '', stacked = false }) {
   const classes = ['logo-lockup', stacked ? 'logo-lockup-stacked' : '', className].filter(Boolean).join(' ');

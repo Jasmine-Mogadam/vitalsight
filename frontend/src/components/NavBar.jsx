@@ -37,6 +37,8 @@ export default function NavBar() {
 
       <nav className="nav-links">
         {!user && <NavLink to="/">Home</NavLink>}
+        <NavLink to="/business-plan">Business Plan</NavLink>
+        <NavLink to="/social-impact">Social Impact</NavLink>
         {!user && <NavLink to="/login">Login</NavLink>}
         {!user && <NavLink to="/register">Register</NavLink>}
         {user && <NavLink to="/dashboard">Dashboard</NavLink>}
