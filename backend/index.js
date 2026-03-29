@@ -2,7 +2,15 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-require('dotenv').config();
+
+function shouldLoadDotenv() {
+  return process.env.NODE_ENV !== 'production' && !process.env.FLY_APP_NAME;
+}
+
+if (shouldLoadDotenv()) {
+  require('dotenv').config();
+}
+
 require('./db');
 
 const authRoutes = require('./routes/auth');
@@ -21,6 +29,31 @@ const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173'];
 const MAX_SPEECH_TEXT_LENGTH = 2_000;
 const LOCATION_SEARCH_RESULT_LIMIT = 6;
 const LOCATION_AUTOCOMPLETE_PROVIDER = process.env.LOCATION_AUTOCOMPLETE_PROVIDER || 'geoapify';
+
+function parseTrustProxySetting(value) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const normalizedValue = value.trim().toLowerCase();
+  if (!normalizedValue) {
+    return null;
+  }
+
+  if (['true', 'yes', 'on'].includes(normalizedValue)) {
+    return true;
+  }
+
+  if (['false', 'no', 'off'].includes(normalizedValue)) {
+    return false;
+  }
+
+  if (/^\d+$/.test(normalizedValue)) {
+    return Number(normalizedValue);
+  }
+
+  return value.trim();
+}
 
 function normalizeOrigin(value) {
   return typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
@@ -55,6 +88,7 @@ function isSafeStorageSegment(value) {
 getJwtSecret();
 
 app.disable('x-powered-by');
+app.set('trust proxy', parseTrustProxySetting(process.env.TRUST_PROXY) ?? (process.env.NODE_ENV === 'production' ? 1 : false));
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');

@@ -24,7 +24,11 @@ export default function TrialDetails() {
     }
     try {
       await api(`/api/trials/${id}/join`, { method: 'POST' });
-      navigate('/discover');
+      navigate('/discover', {
+        state: {
+          toastMessage: 'Application submitted successfully. Your request is pending review.',
+        },
+      });
     } catch (err) {
       setError(err.message);
     }

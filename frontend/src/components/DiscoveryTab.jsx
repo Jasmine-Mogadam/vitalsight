@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/useAuth';
+import Toast from './Toast';
 import {
   COMPENSATION_OPTIONS,
   getTrialSearchPreview,
@@ -26,10 +27,12 @@ function truncateDescription(description, maxLength = 220) {
 
 export default function DiscoveryTab() {
   const { user } = useAuth();
+  const location = useLocation();
   const navigate = useNavigate();
   const [filters, setFilters] = useState({ search: '', type: '', compensation_type: '', sort: 'ongoing' });
   const [trials, setTrials] = useState([]);
   const [error, setError] = useState('');
+  const [toastMessage, setToastMessage] = useState(() => location.state?.toastMessage || '');
 
   useEffect(() => {
     let active = true;
@@ -44,6 +47,12 @@ export default function DiscoveryTab() {
       active = false;
     };
   }, []);
+
+  useEffect(() => {
+    const message = location.state?.toastMessage;
+    if (!message) return;
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.pathname, location.state, navigate]);
 
   const loadTrials = async (nextFilters = filters) => {
     const params = new URLSearchParams();
@@ -61,6 +70,7 @@ export default function DiscoveryTab() {
     try {
       await api(`/api/trials/${trialId}/join`, { method: 'POST' });
       await loadTrials();
+      setToastMessage('Application submitted successfully. Your request is pending review.');
     } catch (err) {
       setError(err.message);
     }
@@ -124,6 +134,7 @@ export default function DiscoveryTab() {
           {!trials.length && <div className="empty-state">No trials matched your current filters.</div>}
         </div>
       </section>
+      <Toast message={toastMessage} onClose={() => setToastMessage('')} />
     </div>
   );
 }
