@@ -16,16 +16,218 @@ const LANDMARKS = {
   leftCheek: 454,
 };
 
-// Simulated vitals with slight variations (used before Presage connects)
-function generateVitals(base) {
-  const jitter = (val, range) =>
-    Math.round(val + (Math.random() - 0.5) * range);
+// ─── rPPG Vital Sign Processor ───────────────────────────────────────────────
+// Implements camera-based remote photoplethysmography (rPPG):
+//  - Heart rate:     FFT on green-channel signal from forehead/cheek ROIs
+//  - Breathing rate: FFT on vertical nose-tip displacement
+//  - HRV:            RMSSD from peak intervals in rPPG signal
+//  - SpO2:           R/G AC-DC ratio (rough camera-based estimate)
+//  - Stress:         Inverse of normalized HRV
+function createRPPGProcessor() {
+  const BUFFER_SIZE = 512; // ~17s at 30fps, power-of-2 for FFT
+  const ROI_HALF = 15;     // 30x30 px around each landmark
+
+  const buf = [];
+  const offscreen = document.createElement("canvas");
+  const octx = offscreen.getContext("2d", { willReadFrequently: true });
+
+  // last computed values for smoothing
+  let last = { heartRate: 72, breathingRate: 16, hrv: 55, spo2: 98, stressLevel: 28 };
+
+  function mean(arr) {
+    return arr.reduce((s, v) => s + v, 0) / arr.length;
+  }
+
+  function detrend(arr) {
+    const n = arr.length;
+    let sx = 0, sy = 0, sxy = 0, sx2 = 0;
+    for (let i = 0; i < n; i++) { sx += i; sy += arr[i]; sxy += i * arr[i]; sx2 += i * i; }
+    const denom = n * sx2 - sx * sx;
+    if (denom === 0) return arr.slice();
+    const slope = (n * sxy - sx * sy) / denom;
+    const intercept = (sy - slope * sx) / n;
+    return arr.map((v, i) => v - (slope * i + intercept));
+  }
+
+  function emaLP(arr, cutNorm) {
+    // EMA low-pass: cutNorm = cutoffHz / nyquist
+    const alpha = Math.min(1, Math.max(0.001, cutNorm));
+    const out = arr.slice();
+    for (let i = 1; i < out.length; i++) out[i] = alpha * arr[i] + (1 - alpha) * out[i - 1];
+    return out;
+  }
+
+  function bandpass(arr, fps, lo, hi) {
+    // LP at hi, then subtract LP at lo  → crude but effective bandpass
+    const lp = emaLP(arr, hi / (fps / 2));
+    const vlo = emaLP(arr, lo / (fps / 2));
+    return lp.map((v, i) => v - vlo[i]);
+  }
+
+  function hannWindow(arr) {
+    const n = arr.length;
+    return arr.map((v, i) => v * 0.5 * (1 - Math.cos((2 * Math.PI * i) / (n - 1))));
+  }
+
+  // In-place Cooley-Tukey FFT (radix-2, n must be power of 2)
+  function fftInPlace(re, im) {
+    const n = re.length;
+    // Bit-reversal
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit;
+      if (i < j) {
+        [re[i], re[j]] = [re[j], re[i]];
+        [im[i], im[j]] = [im[j], im[i]];
+      }
+    }
+    for (let len = 2; len <= n; len <<= 1) {
+      const ang = (-2 * Math.PI) / len;
+      const wRe = Math.cos(ang), wIm = Math.sin(ang);
+      for (let i = 0; i < n; i += len) {
+        let cRe = 1, cIm = 0;
+        for (let j = 0; j < len >> 1; j++) {
+          const uRe = re[i + j], uIm = im[i + j];
+          const vRe = re[i + j + len / 2] * cRe - im[i + j + len / 2] * cIm;
+          const vIm = re[i + j + len / 2] * cIm + im[i + j + len / 2] * cRe;
+          re[i + j] = uRe + vRe; im[i + j] = uIm + vIm;
+          re[i + j + len / 2] = uRe - vRe; im[i + j + len / 2] = uIm - vIm;
+          [cRe, cIm] = [cRe * wRe - cIm * wIm, cRe * wIm + cIm * wRe];
+        }
+      }
+    }
+  }
+
+  function dominantFreq(signal, fps, minHz, maxHz) {
+    // Zero-pad to next power of 2 ≥ signal.length
+    let n = 1;
+    while (n < signal.length) n <<= 1;
+    const re = new Float64Array(n);
+    const im = new Float64Array(n);
+    const win = hannWindow(signal);
+    for (let i = 0; i < signal.length; i++) re[i] = win[i];
+    fftInPlace(re, im);
+    let maxP = 0, maxF = 0;
+    for (let k = 1; k < n / 2; k++) {
+      const f = (k * fps) / n;
+      if (f < minHz || f > maxHz) continue;
+      const p = re[k] * re[k] + im[k] * im[k];
+      if (p > maxP) { maxP = p; maxF = f; }
+    }
+    return maxF;
+  }
+
+  function findPeaks(signal, fps) {
+    const minGap = Math.floor(fps * 0.35); // max ~170 bpm
+    const threshold = mean(signal) + 0.15 * (Math.max(...signal) - Math.min(...signal));
+    const peaks = [];
+    for (let i = 1; i < signal.length - 1; i++) {
+      if (signal[i] > signal[i - 1] && signal[i] > signal[i + 1] && signal[i] > threshold) {
+        if (!peaks.length || i - peaks[peaks.length - 1] >= minGap) peaks.push(i);
+      }
+    }
+    return peaks;
+  }
+
+  function smooth(prev, next, alpha = 0.35) {
+    return Math.round(alpha * next + (1 - alpha) * prev);
+  }
+
   return {
-    heartRate: jitter(base?.heartRate || 72, 6),
-    breathingRate: jitter(base?.breathingRate || 16, 3),
-    stressLevel: jitter(base?.stressLevel || 28, 10),
-    hrv: jitter(base?.hrv || 55, 8),
-    spo2: Math.min(100, jitter(base?.spo2 || 98, 2)),
+    get bufferFill() { return buf.length; },
+    get ready() { return buf.length >= 90; }, // ~3s at 30fps
+
+    processFrame(video, landmarks, vw, vh) {
+      if (!landmarks) return;
+      offscreen.width = vw;
+      offscreen.height = vh;
+      octx.drawImage(video, 0, 0, vw, vh);
+
+      // Sample three ROIs: forehead (10), right cheek (234), left cheek (454)
+      const roiIdxs = [10, 234, 454];
+      let sumR = 0, sumG = 0, sumB = 0, count = 0;
+
+      for (const idx of roiIdxs) {
+        const lm = landmarks[idx];
+        // Note: landmark X is in original (unmirrored) video coordinates
+        const cx = Math.round(lm.x * vw);
+        const cy = Math.round(lm.y * vh);
+        const x = Math.max(0, cx - ROI_HALF);
+        const y = Math.max(0, cy - ROI_HALF);
+        const w = Math.min(ROI_HALF * 2, vw - x);
+        const h = Math.min(ROI_HALF * 2, vh - y);
+        if (w <= 0 || h <= 0) continue;
+        try {
+          const px = octx.getImageData(x, y, w, h).data;
+          for (let i = 0; i < px.length; i += 4) {
+            sumR += px[i]; sumG += px[i + 1]; sumB += px[i + 2]; count++;
+          }
+        } catch { /* tainted canvas guard */ }
+      }
+
+      if (count > 0) {
+        buf.push({
+          r: sumR / count,
+          g: sumG / count,
+          b: sumB / count,
+          ny: landmarks[1].y, // nose-tip Y for breathing
+        });
+        if (buf.length > BUFFER_SIZE) buf.shift();
+      }
+    },
+
+    computeVitals() {
+      if (buf.length < 90) return null;
+
+      const actualFPS = 30; // MediaPipe Camera runs at ~30fps
+
+      const green = detrend(buf.map(s => s.g));
+      const red   = detrend(buf.map(s => s.r));
+      const noseY = detrend(buf.map(s => s.ny));
+
+      // Heart rate: bandpass 0.7–4 Hz (42–240 bpm)
+      const hrSig = bandpass(green, actualFPS, 0.7, 4.0);
+      const hrFreq = dominantFreq(hrSig, actualFPS, 0.75, 3.5);
+      const rawHR = hrFreq > 0 ? Math.round(hrFreq * 60) : last.heartRate;
+      const heartRate = smooth(last.heartRate, rawHR, 0.3);
+
+      // Breathing rate: bandpass 0.1–0.7 Hz (6–42 br/min)
+      const brSig = bandpass(noseY, actualFPS, 0.1, 0.7);
+      const brFreq = dominantFreq(brSig, actualFPS, 0.13, 0.6);
+      const rawBR = brFreq > 0 ? Math.round(brFreq * 60) : last.breathingRate;
+      const breathingRate = smooth(last.breathingRate, Math.max(8, Math.min(30, rawBR)), 0.25);
+
+      // HRV (RMSSD from peak intervals)
+      const hrFiltered = bandpass(green, actualFPS, 0.7, 4.0);
+      const peaks = findPeaks(hrFiltered, actualFPS);
+      let hrv = last.hrv;
+      if (peaks.length >= 3) {
+        const intervals = peaks.slice(1).map((p, i) => ((p - peaks[i]) / actualFPS) * 1000);
+        const diffs = intervals.slice(1).map((iv, i) => (iv - intervals[i]) ** 2);
+        const rmssd = Math.sqrt(diffs.reduce((s, v) => s + v, 0) / diffs.length);
+        hrv = smooth(last.hrv, Math.round(Math.max(15, Math.min(100, rmssd))), 0.25);
+      }
+
+      // SpO2: R/G AC-DC perfusion index ratio (camera-based approximation)
+      const acR = Math.sqrt(red.reduce((s, v) => s + v * v, 0) / red.length);
+      const acG = Math.sqrt(green.reduce((s, v) => s + v * v, 0) / green.length);
+      const dcR = mean(buf.map(s => s.r));
+      const dcG = mean(buf.map(s => s.g));
+      let spo2 = last.spo2;
+      if (dcR > 10 && dcG > 10 && acG > 0.01) {
+        const ratio = (acR / dcR) / (acG / dcG);
+        // Empirical formula adapted for R/G (vs clinical R/IR): SpO2 ≈ 110 − 25·ratio
+        const rawSpO2 = Math.round(Math.min(100, Math.max(88, 110 - 25 * ratio)));
+        spo2 = smooth(last.spo2, rawSpO2, 0.2);
+      }
+
+      // Stress: inverse of normalized HRV (high HRV → low stress)
+      const stressLevel = Math.round(Math.max(5, Math.min(90, 100 - hrv)));
+
+      last = { heartRate, breathingRate, hrv, spo2, stressLevel };
+      return last;
+    },
   };
 }
 
@@ -53,10 +255,13 @@ function MonitorPage() {
   const [logging, setLogging] = useState(false);
   const [presageConnected, setPresageConnected] = useState(false);
   const [faceDetected, setFaceDetected] = useState(false);
+  const [calibrating, setCalibrating] = useState(false);
   const vitalsInterval = useRef(null);
   const faceMeshRef = useRef(null);
   const cameraUtilRef = useRef(null);
   const latestVitals = useRef(null);
+  const rppgRef = useRef(null);
+  const presageConnectedRef = useRef(false);
 
   // Keep a ref in sync so the MediaPipe callback can read current vitals
   useEffect(() => {
@@ -231,6 +436,10 @@ function MonitorPage() {
         ) {
           setFaceDetected(true);
           drawAROverlay(ctx, results.multiFaceLandmarks[0], w, h);
+          // Feed raw pixel data into rPPG processor every frame
+          if (rppgRef.current && videoRef.current) {
+            rppgRef.current.processFrame(videoRef.current, results.multiFaceLandmarks[0], w, h);
+          }
         } else {
           setFaceDetected(false);
         }
@@ -252,7 +461,11 @@ function MonitorPage() {
       cameraUtilRef.current = camera;
       setCameraOn(true);
 
-      // Try to connect Presage SDK
+      // Initialize rPPG processor
+      rppgRef.current = createRPPGProcessor();
+      setCalibrating(true);
+
+      // Try to connect Presage SDK (preferred — has dedicated rPPG hardware calibration)
       try {
         if (window.Presage) {
           const presage = new window.Presage({
@@ -260,7 +473,9 @@ function MonitorPage() {
           });
           presage.start(videoRef.current);
           presage.on("vitals", (data) => {
+            presageConnectedRef.current = true;
             setPresageConnected(true);
+            setCalibrating(false);
             setVitals({
               heartRate: Math.round(data.heartRate || data.hr),
               breathingRate: Math.round(data.breathingRate || data.br),
@@ -271,16 +486,24 @@ function MonitorPage() {
           });
         }
       } catch {
-        // Presage SDK not available, use simulation
+        // Presage SDK not available, fall through to rPPG
       }
 
-      // Start simulated vitals updates (fallback)
-      let base = generateVitals();
-      setVitals(base);
+      // rPPG-driven vitals (runs when Presage is not connected)
+      // First 3s: show placeholder; then compute from real camera signal every 3s
       vitalsInterval.current = setInterval(() => {
-        base = generateVitals(base);
-        setVitals(base);
-      }, 2000);
+        if (presageConnectedRef.current) return; // Presage has taken over
+        const rppg = rppgRef.current;
+        if (!rppg) return;
+        if (rppg.ready) {
+          const computed = rppg.computeVitals();
+          if (computed) {
+            setCalibrating(false);
+            setVitals(computed);
+          }
+        }
+        // While calibrating, show nothing (vitals stay null / "--")
+      }, 3000);
     } catch (err) {
       console.error("Camera access denied:", err);
     }
@@ -377,7 +600,9 @@ function MonitorPage() {
               ? presageConnected
                 ? "Presage Connected"
                 : faceDetected
-                  ? "Face Tracked — AR Active"
+                  ? calibrating
+                    ? "Calibrating rPPG — hold still..."
+                    : "rPPG Active — AR Live"
                   : "Searching for face..."
               : "Camera Off"}
           </div>
