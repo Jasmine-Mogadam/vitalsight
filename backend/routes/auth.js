@@ -1,48 +1,14 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { db, createMessage, createUserWithProfile, getUserByEmail, getUserWithProfile } = require('../db');
 const { authRateLimit } = require('../middleware/rateLimit');
 const { requireAuth } = require('../middleware/auth');
-const { getJwtSecret } = require('../config/security');
+const { clearAuthCookie, setAuthCookie } = require('../lib/authSession');
 
 const router = express.Router();
 
 function isEmail(value) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value || '');
-}
-
-function getRequestOrigin(req) {
-  const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
-  return `${protocol}://${req.get('host')}`;
-}
-
-function cookieOptions(req) {
-  const requestOrigin = getRequestOrigin(req);
-  const callerOrigin = typeof req.headers.origin === 'string' ? req.headers.origin.trim().replace(/\/+$/, '') : '';
-  const isCrossOrigin = Boolean(callerOrigin) && callerOrigin !== requestOrigin;
-
-  return {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: isCrossOrigin ? 'none' : 'strict',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60 * 1000,
-  };
-}
-
-function setAuthCookie(req, res, user) {
-  const token = jwt.sign({ id: user.id, role: user.role }, getJwtSecret(), {
-    expiresIn: '7d',
-  });
-  res.cookie('token', token, cookieOptions(req));
-}
-
-function clearAuthCookie(req, res) {
-  res.clearCookie('token', {
-    ...cookieOptions(req),
-    maxAge: undefined,
-  });
 }
 
 router.get('/me', requireAuth, (req, res) => {

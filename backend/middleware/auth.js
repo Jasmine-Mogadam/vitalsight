@@ -1,8 +1,9 @@
 const jwt = require('jsonwebtoken');
 const { getUserWithProfile } = require('../db');
 const { getJwtSecret } = require('../config/security');
+const { clearAuthCookie, setAuthCookie, shouldRefreshAuthToken } = require('../lib/authSession');
 
-function optionalAuth(req, _res, next) {
+function optionalAuth(req, res, next) {
   const token = req.cookies?.token;
   if (!token) {
     req.user = null;
@@ -12,8 +13,12 @@ function optionalAuth(req, _res, next) {
   try {
     const payload = jwt.verify(token, getJwtSecret());
     req.user = getUserWithProfile(payload.id);
+    if (req.user && shouldRefreshAuthToken(payload)) {
+      setAuthCookie(req, res, req.user);
+    }
   } catch {
     req.user = null;
+    clearAuthCookie(req, res);
   }
 
   next();

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { API_BASE } from '../lib/api';
+import { api, apiFetch } from '../lib/api';
 
 const LANDMARKS = {
   forehead: 10,
@@ -155,10 +155,7 @@ export default function MonitorPage() {
 
     async function loadStatus() {
       try {
-        const response = await fetch(`${API_BASE}/api/presage/status`, {
-          credentials: 'include',
-        });
-        const data = await response.json();
+        const data = await api('/api/presage/status');
         if (!cancelled) {
           setPresageStatus(data);
         }
@@ -235,9 +232,8 @@ export default function MonitorPage() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/presage/measure`, {
+      const response = await apiFetch('/api/presage/measure', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image,
@@ -353,13 +349,11 @@ export default function MonitorPage() {
     if (!vitals) return;
     setAnalyzing(true);
     try {
-      const response = await fetch(`${API_BASE}/api/analyze`, {
+      const data = await api('/api/analyze', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vitals }),
       });
-      const data = await response.json();
       setAnalysis(data.analysis || data.error);
     } catch {
       setAnalysis('Analysis unavailable. Check API connectivity.');
@@ -372,9 +366,8 @@ export default function MonitorPage() {
     if (!analysis) return;
     setSpeaking(true);
     try {
-      const response = await fetch(`${API_BASE}/api/speak`, {
+      const response = await apiFetch('/api/speak', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: analysis }),
       });
@@ -400,13 +393,11 @@ export default function MonitorPage() {
     setLogging(true);
     try {
       const timestamp = new Date().toISOString();
-      const response = await fetch(`${API_BASE}/api/log-vitals`, {
+      const data = await api('/api/log-vitals', {
         method: 'POST',
-        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vitalsHash: hashVitals(vitals), timestamp }),
       });
-      const data = await response.json();
       if (data.signature) {
         setTxLog((current) => [{ sig: data.signature, url: data.explorerUrl, time: timestamp }, ...current]);
       }
