@@ -2,9 +2,10 @@
   "name": "vitalsight",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n api,web -c blue,green \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev": "concurrently -n api,web,presage -c blue,green,magenta \"npm run dev:backend\" \"npm run dev:frontend\" \"npm run dev:presage-bridge\"",
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
+    "dev:presage-bridge": "node presage-bridge/server.cjs",
     "build": "cd frontend && npm run build",
     "deploy": "bash deploy.sh",
     "install:all": "cd frontend && npm install && cd ../backend && npm install"

@@ -10,6 +10,7 @@ const trialRoutes = require('./routes/trials');
 const formRoutes = require('./routes/forms');
 const patientRoutes = require('./routes/patients');
 const inboxRoutes = require('./routes/inbox');
+const presageRoutes = require('./routes/presage');
 const { startScheduler } = require('./services/scheduler');
 
 const app = express();
@@ -47,6 +48,7 @@ app.use('/api/trials', trialRoutes);
 app.use('/api/forms', formRoutes);
 app.use('/api/patients', patientRoutes);
 app.use('/api/inbox', inboxRoutes);
+app.use('/api/presage', presageRoutes);
 
 app.post('/api/analyze', async (req, res) => {
   try {
@@ -64,14 +66,14 @@ app.post('/api/analyze', async (req, res) => {
             {
               parts: [
                 {
-                  text: `You are a clinical trial health monitoring AI assistant. Analyze these patient vitals and provide a brief, friendly health insight (2-3 sentences). Be encouraging but note any concerns.
+                  text: `You are a clinical trial health monitoring AI assistant. Analyze these patient vitals and provide a brief, friendly health insight (2-3 sentences). Be encouraging but note any concerns. Some values may be unavailable from the capture provider; treat missing values as "unknown" instead of guessing.
 
 Vitals:
-- Heart Rate: ${vitals.heartRate} bpm
-- Breathing Rate: ${vitals.breathingRate} breaths/min
-- Stress Level: ${vitals.stressLevel}/100
-- HRV (Heart Rate Variability): ${vitals.hrv} ms
-- Oxygen Saturation: ${vitals.spo2}%
+- Heart Rate: ${vitals.heartRate ?? 'unknown'} bpm
+- Breathing Rate: ${vitals.breathingRate ?? 'unknown'} breaths/min
+- Stress Level: ${vitals.stressLevel ?? 'unknown'}/100
+- HRV (Heart Rate Variability): ${vitals.hrv ?? 'unknown'} ms
+- Oxygen Saturation: ${vitals.spo2 ?? 'unknown'}%
 
 Provide a brief analysis suitable for a patient check-in.`,
                 },
