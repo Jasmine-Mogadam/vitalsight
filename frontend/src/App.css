@@ -640,11 +640,59 @@ textarea {
 
 .search-result-card {
   padding: 26px;
+  gap: 28px;
 }
 
 .search-result-content,
 .invite-pill-content {
   min-width: 0;
+}
+
+.search-result-body,
+.search-preview-body {
+  display: grid;
+  align-content: start;
+}
+
+.search-result-body {
+  gap: 14px;
+}
+
+.search-preview-body {
+  gap: 12px;
+}
+
+.search-result-copy,
+.search-result-meta,
+.search-preview-meta {
+  display: grid;
+}
+
+.search-result-copy {
+  gap: 4px;
+}
+
+.search-result-meta,
+.search-preview-meta {
+  gap: 2px;
+}
+
+.search-result-meta .muted-text,
+.search-preview-body .muted-text {
+  line-height: 1.45;
+}
+
+.search-result-actions {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 12px;
+  min-width: 180px;
+}
+
+.search-result-actions > * {
+  justify-content: center;
+  width: 100%;
 }
 
 .truncate-text {
@@ -696,6 +744,7 @@ textarea {
 
 .search-preview-card {
   background: linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(249, 242, 231, 0.75));
+  padding: 22px;
 }
 
 .builder-card {
@@ -1310,6 +1359,15 @@ textarea {
   .builder-grid,
   .invite-pill-card {
     grid-template-columns: 1fr;
+  }
+
+  .search-result-card {
+    gap: 18px;
+  }
+
+  .search-result-actions {
+    min-width: 0;
+    width: 100%;
   }
 
   .toast-shell {

@@ -214,11 +214,13 @@ export default function TrialManagement() {
             <div className="preview-card">
               <p className="eyebrow">Search preview</p>
               <div className="list-card tall search-preview-card">
-                <div>
+                <div className="search-preview-body">
                   <h3>{form.name || 'Untitled trial'}</h3>
                   <p className="muted-text">{form.description || 'Your description will appear here in trial discovery.'}</p>
-                  <p className="muted-text">Type: {preview.type}</p>
-                  <p className="muted-text">{preview.compensationLine}</p>
+                  <div className="search-preview-meta">
+                    <p className="muted-text">Type: {preview.type}</p>
+                    <p className="muted-text">{preview.compensationLine}</p>
+                  </div>
                   <div className="tag-row">
                     {preview.tags.map((tag) => (
                       <span className="tag-chip" key={tag}>{tag}</span>

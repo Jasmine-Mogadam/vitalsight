@@ -6,6 +6,7 @@
     "dev:frontend": "cd frontend && npm run dev",
     "dev:backend": "cd backend && npm run dev",
     "dev:presage-bridge": "node presage-bridge/server.cjs",
+    "seed": "cd backend && npm run seed",
     "build": "cd frontend && npm run build",
     "deploy": "bash deploy.sh",
     "install:all": "cd frontend && npm install && cd ../backend && npm install"

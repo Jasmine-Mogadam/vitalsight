@@ -106,15 +106,19 @@ export default function DiscoveryTab() {
             const description = truncateDescription(trial.description);
             return (
               <div className="list-card tall search-result-card" key={trial.id}>
-                <div className="search-result-content">
+                <div className="search-result-content search-result-body">
                   <h3>{trial.name}</h3>
-                  <p className="muted-text">{description.text}</p>
-                  {description.truncated && <Link className="see-more-link" to={`/discover/${trial.id}`}>... See More</Link>}
-                  <p className="muted-text">Type: {preview.type}</p>
-                  <p className="muted-text">{preview.compensationLine}</p>
-                  {timing.map((line) => (
-                    <p className="muted-text" key={line}>{line}</p>
-                  ))}
+                  <div className="search-result-copy">
+                    <p className="muted-text">{description.text}</p>
+                    {description.truncated && <Link className="see-more-link" to={`/discover/${trial.id}`}>... See More</Link>}
+                  </div>
+                  <div className="search-result-meta">
+                    <p className="muted-text">Type: {preview.type}</p>
+                    <p className="muted-text">{preview.compensationLine}</p>
+                    {timing.map((line) => (
+                      <p className="muted-text" key={line}>{line}</p>
+                    ))}
+                  </div>
                   <div className="tag-row">
                     {preview.tags.map((tag) => (
                       <span className="tag-chip" key={tag}>{tag}</span>
@@ -122,7 +126,7 @@ export default function DiscoveryTab() {
                     <span className="tag-chip subtle">{trial.applications_open ? 'Open now' : 'Applications closed'}</span>
                   </div>
                 </div>
-                <div className="action-row">
+                <div className="action-row search-result-actions">
                   <Link className="secondary-btn" to={`/discover/${trial.id}`}>View trial</Link>
                   <button className="primary-btn" type="button" onClick={() => requestJoin(trial.id)} disabled={user && !trial.applications_open}>
                     {!trial.applications_open ? 'Applications closed' : user ? 'Request join' : 'Log in to join'}

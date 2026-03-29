@@ -24,6 +24,7 @@ deploy.sh               Deploy script (creates app/machines if needed, then depl
 
 ```bash
 npm run install:all     # install frontend + backend deps
+npm run seed            # reset the SQLite DB and seed demo coordinators, patients, trials, forms, and inbox data
 npm run dev             # start both frontend (:5173) and backend (:3001) concurrently
 npm run deploy          # build + deploy everything to Fly.io
 ```

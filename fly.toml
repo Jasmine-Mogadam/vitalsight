@@ -13,4 +13,6 @@ primary_region = 'ord'
 
 [env]
   PORT = '3001'
+  NODE_ENV = 'production'
+  TRUST_PROXY = '1'
   FRONTEND_ORIGINS = 'https://vitalsight.tech,https://vitalsight-api.fly.dev'
