@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { db, createMessage, createUserWithProfile, getUserByEmail, getUserWithProfile } = require('../db');
 const { authRateLimit } = require('../middleware/rateLimit');
 const { requireAuth } = require('../middleware/auth');
+const { getJwtSecret } = require('../config/security');
 
 const router = express.Router();
 
@@ -21,7 +22,7 @@ function cookieOptions() {
 }
 
 function setAuthCookie(res, user) {
-  const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET || 'dev-secret', {
+  const token = jwt.sign({ id: user.id, role: user.role }, getJwtSecret(), {
     expiresIn: '7d',
   });
   res.cookie('token', token, cookieOptions());

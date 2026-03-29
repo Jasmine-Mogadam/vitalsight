@@ -12,9 +12,43 @@ const patientRoutes = require('./routes/patients');
 const inboxRoutes = require('./routes/inbox');
 const presageRoutes = require('./routes/presage');
 const { startScheduler } = require('./services/scheduler');
+const { requireAuth } = require('./middleware/auth');
+const { expensiveApiRateLimit } = require('./middleware/rateLimit');
+const { getJwtSecret } = require('./config/security');
 
 const app = express();
 const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+const MAX_SPEECH_TEXT_LENGTH = 2_000;
+
+function isPlainObject(value) {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isFiniteNullableNumber(value) {
+  return value === null || value === undefined || (typeof value === 'number' && Number.isFinite(value));
+}
+
+function isValidIsoTimestamp(value) {
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value));
+}
+
+function isSafeStorageSegment(value) {
+  return typeof value === 'string' && /^[a-zA-Z0-9_-]{1,64}$/.test(value);
+}
+
+getJwtSecret();
+
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
+  if (req.secure || req.headers['x-forwarded-proto'] === 'https') {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
 
 app.use(
   cors({
@@ -50,11 +84,22 @@ app.use('/api/patients', patientRoutes);
 app.use('/api/inbox', inboxRoutes);
 app.use('/api/presage', presageRoutes);
 
-app.post('/api/analyze', async (req, res) => {
+app.post('/api/analyze', requireAuth, expensiveApiRateLimit, async (req, res) => {
   try {
     const { vitals } = req.body;
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
+    if (!isPlainObject(vitals)) {
+      return res.status(400).json({ error: 'Vitals payload must be an object' });
+    }
+
+    const normalizedVitals = {
+      heartRate: isFiniteNullableNumber(vitals.heartRate) ? vitals.heartRate : null,
+      breathingRate: isFiniteNullableNumber(vitals.breathingRate) ? vitals.breathingRate : null,
+      stressLevel: isFiniteNullableNumber(vitals.stressLevel) ? vitals.stressLevel : null,
+      hrv: isFiniteNullableNumber(vitals.hrv) ? vitals.hrv : null,
+      spo2: isFiniteNullableNumber(vitals.spo2) ? vitals.spo2 : null,
+    };
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
@@ -69,11 +114,11 @@ app.post('/api/analyze', async (req, res) => {
                   text: `You are a clinical trial health monitoring AI assistant. Analyze these patient vitals and provide a brief, friendly health insight (2-3 sentences). Be encouraging but note any concerns. Some values may be unavailable from the capture provider; treat missing values as "unknown" instead of guessing.
 
 Vitals:
-- Heart Rate: ${vitals.heartRate ?? 'unknown'} bpm
-- Breathing Rate: ${vitals.breathingRate ?? 'unknown'} breaths/min
-- Stress Level: ${vitals.stressLevel ?? 'unknown'}/100
-- HRV (Heart Rate Variability): ${vitals.hrv ?? 'unknown'} ms
-- Oxygen Saturation: ${vitals.spo2 ?? 'unknown'}%
+- Heart Rate: ${normalizedVitals.heartRate ?? 'unknown'} bpm
+- Breathing Rate: ${normalizedVitals.breathingRate ?? 'unknown'} breaths/min
+- Stress Level: ${normalizedVitals.stressLevel ?? 'unknown'}/100
+- HRV (Heart Rate Variability): ${normalizedVitals.hrv ?? 'unknown'} ms
+- Oxygen Saturation: ${normalizedVitals.spo2 ?? 'unknown'}%
 
 Provide a brief analysis suitable for a patient check-in.`,
                 },
@@ -98,11 +143,14 @@ Provide a brief analysis suitable for a patient check-in.`,
   }
 });
 
-app.post('/api/speak', async (req, res) => {
+app.post('/api/speak', requireAuth, expensiveApiRateLimit, async (req, res) => {
   try {
     const { text } = req.body;
     const apiKey = process.env.ELEVENLABS_API_KEY;
     if (!apiKey) return res.status(500).json({ error: 'ELEVENLABS_API_KEY not configured' });
+    if (typeof text !== 'string' || !text.trim() || text.length > MAX_SPEECH_TEXT_LENGTH) {
+      return res.status(400).json({ error: 'Text is required and must be under 2000 characters' });
+    }
 
     const voiceId = process.env.ELEVENLABS_VOICE_ID || 'EXAVITQu4vr4xnSDxMaL';
     const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -112,7 +160,7 @@ app.post('/api/speak', async (req, res) => {
         'xi-api-key': apiKey,
       },
       body: JSON.stringify({
-        text,
+        text: text.trim(),
         model_id: 'eleven_multilingual_v2',
         voice_settings: {
           stability: 0.5,
@@ -136,11 +184,17 @@ app.post('/api/speak', async (req, res) => {
   }
 });
 
-app.post('/api/log-vitals', async (req, res) => {
+app.post('/api/log-vitals', requireAuth, expensiveApiRateLimit, async (req, res) => {
   try {
     const { vitalsHash, timestamp } = req.body;
     const privateKey = process.env.SOLANA_PRIVATE_KEY;
     if (!privateKey) return res.status(500).json({ error: 'SOLANA_PRIVATE_KEY not configured' });
+    if (typeof vitalsHash !== 'string' || !/^[a-fA-F0-9]{1,128}$/.test(vitalsHash)) {
+      return res.status(400).json({ error: 'Invalid vitals hash' });
+    }
+    if (!isValidIsoTimestamp(timestamp)) {
+      return res.status(400).json({ error: 'Invalid timestamp' });
+    }
 
     const { Connection, Keypair, Transaction, TransactionInstruction, PublicKey } = await import('@solana/web3.js');
     const connection = new Connection('https://api.devnet.solana.com', 'confirmed');
@@ -174,7 +228,7 @@ app.post('/api/log-vitals', async (req, res) => {
   }
 });
 
-app.post('/api/store-vitals', async (req, res) => {
+app.post('/api/store-vitals', requireAuth, expensiveApiRateLimit, async (req, res) => {
   try {
     const { vitals, sessionId, timestamp } = req.body;
     const keyId = process.env.B2_KEY_ID;
@@ -182,6 +236,15 @@ app.post('/api/store-vitals', async (req, res) => {
     const bucketId = process.env.B2_BUCKET_ID;
 
     if (!keyId || !appKey) return res.status(500).json({ error: 'B2 credentials not configured' });
+    if (!isPlainObject(vitals)) {
+      return res.status(400).json({ error: 'Vitals payload must be an object' });
+    }
+    if (!isSafeStorageSegment(sessionId)) {
+      return res.status(400).json({ error: 'Invalid sessionId' });
+    }
+    if (!isValidIsoTimestamp(timestamp)) {
+      return res.status(400).json({ error: 'Invalid timestamp' });
+    }
 
     const authResponse = await fetch('https://api.backblazeb2.com/b2api/v2/b2_authorize_account', {
       headers: { Authorization: `Basic ${Buffer.from(`${keyId}:${appKey}`).toString('base64')}` },

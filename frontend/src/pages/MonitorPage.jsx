@@ -155,7 +155,9 @@ export default function MonitorPage() {
 
     async function loadStatus() {
       try {
-        const response = await fetch(`${API_BASE}/api/presage/status`);
+        const response = await fetch(`${API_BASE}/api/presage/status`, {
+          credentials: 'include',
+        });
         const data = await response.json();
         if (!cancelled) {
           setPresageStatus(data);
@@ -235,6 +237,7 @@ export default function MonitorPage() {
     try {
       const response = await fetch(`${API_BASE}/api/presage/measure`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image,
@@ -352,6 +355,7 @@ export default function MonitorPage() {
     try {
       const response = await fetch(`${API_BASE}/api/analyze`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vitals }),
       });
@@ -370,6 +374,7 @@ export default function MonitorPage() {
     try {
       const response = await fetch(`${API_BASE}/api/speak`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: analysis }),
       });
@@ -397,6 +402,7 @@ export default function MonitorPage() {
       const timestamp = new Date().toISOString();
       const response = await fetch(`${API_BASE}/api/log-vitals`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vitalsHash: hashVitals(vitals), timestamp }),
       });
