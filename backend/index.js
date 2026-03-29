@@ -17,8 +17,22 @@ const { expensiveApiRateLimit } = require('./middleware/rateLimit');
 const { getJwtSecret } = require('./config/security');
 
 const app = express();
-const allowedOrigin = process.env.FRONTEND_ORIGIN || 'http://localhost:5173';
+const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173'];
 const MAX_SPEECH_TEXT_LENGTH = 2_000;
+
+function normalizeOrigin(value) {
+  return typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
+}
+
+function getAllowedOrigins() {
+  const configuredOrigins = [process.env.FRONTEND_ORIGINS, process.env.FRONTEND_ORIGIN]
+    .filter(Boolean)
+    .flatMap((value) => value.split(','))
+    .map(normalizeOrigin)
+    .filter(Boolean);
+
+  return configuredOrigins.length > 0 ? configuredOrigins : DEFAULT_ALLOWED_ORIGINS;
+}
 
 function isPlainObject(value) {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -53,7 +67,10 @@ app.use((req, res, next) => {
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || origin === allowedOrigin) {
+      const normalizedOrigin = normalizeOrigin(origin);
+      const allowedOrigins = getAllowedOrigins();
+
+      if (!origin || allowedOrigins.includes(normalizedOrigin)) {
         return callback(null, true);
       }
       return callback(new Error('Not allowed by CORS'));
