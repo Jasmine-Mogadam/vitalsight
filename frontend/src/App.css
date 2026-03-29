@@ -274,6 +274,11 @@ textarea {
   gap: 18px;
 }
 
+.onboarding-form {
+  width: min(1120px, 100%);
+  gap: 24px;
+}
+
 .stack-form,
 .stack-list {
   display: grid;
@@ -285,6 +290,36 @@ textarea {
   display: grid;
   gap: 10px;
   font-weight: 600;
+}
+
+.field-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.field-label-row,
+.conditions-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  font-weight: 600;
+}
+
+.field-helper {
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.onboarding-topbar,
+.onboarding-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 input,
@@ -300,6 +335,240 @@ textarea {
 textarea {
   min-height: 110px;
   resize: vertical;
+}
+
+.selection-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.selection-card,
+.condition-option {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fffdf8;
+  cursor: pointer;
+  transition: 160ms ease;
+}
+
+.selection-card:hover,
+.condition-option:hover {
+  border-color: rgba(183, 71, 42, 0.45);
+  transform: translateY(-1px);
+}
+
+.selection-card.selected,
+.condition-option.selected {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, rgba(240, 215, 200, 0.7), rgba(255, 250, 242, 0.98));
+  box-shadow: 0 12px 28px rgba(125, 43, 27, 0.08);
+}
+
+.selection-card input,
+.condition-option input {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 18px;
+  height: 18px;
+}
+
+.selection-card-title {
+  padding-right: 28px;
+  font-weight: 700;
+}
+
+.selection-card-copy {
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+  font-weight: 500;
+}
+
+.tag-input-shell {
+  display: grid;
+  gap: 10px;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fffdf8;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+
+.tag-chip-remove {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tag-input-field {
+  flex: 1 1 180px;
+  min-width: 160px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+}
+
+.tag-input-field:focus {
+  outline: none;
+}
+
+.autocomplete-shell {
+  position: relative;
+}
+
+.autocomplete-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: rgba(255, 250, 242, 0.98);
+  box-shadow: var(--shadow);
+  z-index: 10;
+}
+
+.autocomplete-item {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: inherit;
+}
+
+.autocomplete-item:not(.muted) {
+  cursor: pointer;
+}
+
+.autocomplete-item:not(.muted):hover {
+  background: var(--surface-strong);
+}
+
+.autocomplete-item small,
+.autocomplete-item.muted {
+  color: var(--muted);
+}
+
+.conditions-field {
+  display: grid;
+  gap: 18px;
+}
+
+.conditions-layout {
+  display: grid;
+  gap: 18px;
+}
+
+.conditions-tabs {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scrollbar-width: thin;
+}
+
+.conditions-tab {
+  min-width: 190px;
+  display: grid;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fffdf8;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.conditions-tab small {
+  color: var(--muted);
+}
+
+.conditions-tab.active {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, rgba(240, 215, 200, 0.7), rgba(255, 250, 242, 0.98));
+  box-shadow: 0 12px 28px rgba(125, 43, 27, 0.08);
+}
+
+.condition-group-frame {
+  overflow: hidden;
+  transition: max-height 260ms ease;
+}
+
+.condition-group {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(249, 242, 231, 0.75));
+}
+
+.condition-group h3 {
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 1.05rem;
+}
+
+.condition-group-topbar,
+.condition-group-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.condition-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.condition-nav-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.condition-group-nav .condition-nav-btn:last-child {
+  margin-left: auto;
+}
+
+.condition-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
 }
 
 .checkbox-row {
@@ -771,5 +1040,48 @@ textarea {
 
   .stat-grid {
     grid-template-columns: 1fr;
+  }
+
+  .field-label-row,
+  .conditions-header,
+  .onboarding-topbar,
+  .onboarding-actions,
+  .condition-group-topbar,
+  .condition-group-nav {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (min-width: 980px) {
+  .onboarding-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+
+  .onboarding-form > .onboarding-topbar,
+  .onboarding-form > .eyebrow,
+  .onboarding-form > h1,
+  .onboarding-form > .subtitle,
+  .onboarding-form > .field-stack,
+  .onboarding-form > .conditions-field,
+  .onboarding-form > .onboarding-actions,
+  .onboarding-form > .error-text {
+    grid-column: 1 / -1;
+  }
+
+  .conditions-layout {
+    grid-template-columns: 260px minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .conditions-tabs {
+    display: grid;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .conditions-tab {
+    min-width: 0;
   }
 }

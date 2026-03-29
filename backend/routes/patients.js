@@ -14,7 +14,11 @@ router.put('/profile', (req, res) => {
   const { date_of_birth, ethnicity, location, conditions, notification_prefs } = req.body || {};
   const user = updatePatientProfile(req.user.id, {
     date_of_birth,
-    ethnicity,
+    ethnicity: Array.isArray(ethnicity)
+      ? ethnicity
+      : typeof ethnicity === 'string'
+        ? ethnicity.split(',').map((item) => item.trim()).filter(Boolean)
+        : undefined,
     location,
     conditions: Array.isArray(conditions)
       ? conditions

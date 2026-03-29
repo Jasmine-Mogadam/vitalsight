@@ -121,6 +121,21 @@ const parseJSON = (value, fallback) => {
   }
 };
 
+const parseStringList = (value) => {
+  if (value === null || value === undefined || value === '') return [];
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  if (typeof value !== 'string') return [];
+
+  const parsed = parseJSON(value, null);
+  if (Array.isArray(parsed)) {
+    return parsed.map((item) => String(item).trim()).filter(Boolean);
+  }
+
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
+};
+
 const normalizeUser = (user) => {
   if (!user) return null;
   return {
@@ -179,7 +194,8 @@ function getUserWithProfile(userId) {
       profile: profile
         ? {
             ...profile,
-            conditions: parseJSON(profile.conditions, []),
+            ethnicity: parseStringList(profile.ethnicity),
+            conditions: parseStringList(profile.conditions),
             notification_prefs: parseJSON(profile.notification_prefs, {
               form_reminders: true,
               new_trials: true,
@@ -209,9 +225,9 @@ function createUserWithProfile({ email, passwordHash, role, name, profile = {} }
       insertPatientProfileStmt.run({
         user_id: userId,
         date_of_birth: profile.date_of_birth || null,
-        ethnicity: profile.ethnicity || null,
+        ethnicity: JSON.stringify(parseStringList(profile.ethnicity)),
         location: profile.location || null,
-        conditions: JSON.stringify(Array.isArray(profile.conditions) ? profile.conditions : []),
+        conditions: JSON.stringify(parseStringList(profile.conditions)),
         notification_prefs: JSON.stringify({
           form_reminders: true,
           new_trials: true,
@@ -236,10 +252,12 @@ function updatePatientProfile(userId, updates = {}) {
   const current = getPatientProfileStmt.get(userId);
   const next = {
     date_of_birth: updates.date_of_birth ?? current?.date_of_birth ?? null,
-    ethnicity: updates.ethnicity ?? current?.ethnicity ?? null,
+    ethnicity: JSON.stringify(
+      updates.ethnicity !== undefined ? parseStringList(updates.ethnicity) : parseStringList(current?.ethnicity)
+    ),
     location: updates.location ?? current?.location ?? null,
     conditions: JSON.stringify(
-      Array.isArray(updates.conditions) ? updates.conditions : parseJSON(current?.conditions, [])
+      updates.conditions !== undefined ? parseStringList(updates.conditions) : parseStringList(current?.conditions)
     ),
     notification_prefs: JSON.stringify({
       form_reminders: true,
@@ -290,6 +308,7 @@ function createMessage(message) {
 module.exports = {
   db,
   parseJSON,
+  parseStringList,
   normalizeUser,
   getUserById: (id) => getUserByIdStmt.get(id),
   getUserByEmail: (email) => getUserByEmailStmt.get(email),

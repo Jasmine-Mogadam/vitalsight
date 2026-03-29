@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../contexts/useAuth';
+import LocationAutocomplete from './LocationAutocomplete';
+import PatientConditionsField from './PatientConditionsField';
+import { ETHNICITY_OPTIONS } from './patientProfileOptions';
 
 export default function Profile() {
   const { user, refreshUser, logout } = useAuth();
@@ -23,9 +26,8 @@ export default function Profile() {
         method: 'PUT',
         body: JSON.stringify({
           ...profile,
-          conditions: typeof profile.conditions === 'string'
-            ? profile.conditions.split(',').map((item) => item.trim()).filter(Boolean)
-            : profile.conditions,
+          ethnicity: Array.isArray(profile.ethnicity) ? profile.ethnicity : [],
+          conditions: Array.isArray(profile.conditions) ? profile.conditions : [],
         }),
       });
       await refreshUser();
@@ -57,18 +59,38 @@ export default function Profile() {
               Date of birth
               <input type="date" value={profile.date_of_birth || ''} onChange={(e) => setProfile({ ...profile, date_of_birth: e.target.value })} />
             </label>
-            <label>
-              Ethnicity
-              <input value={profile.ethnicity || ''} onChange={(e) => setProfile({ ...profile, ethnicity: e.target.value })} />
-            </label>
-            <label>
-              Location
-              <input value={profile.location || ''} onChange={(e) => setProfile({ ...profile, location: e.target.value })} />
-            </label>
-            <label>
-              Conditions
-              <textarea value={Array.isArray(profile.conditions) ? profile.conditions.join(', ') : (profile.conditions || '')} onChange={(e) => setProfile({ ...profile, conditions: e.target.value })} />
-            </label>
+            <div className="field-stack">
+              <div className="field-label-row">
+                <span>Ethnicity</span>
+                <span className="field-helper">Select all that apply.</span>
+              </div>
+              <div className="selection-card-grid">
+                {ETHNICITY_OPTIONS.map((option) => {
+                  const selected = Array.isArray(profile.ethnicity) && profile.ethnicity.includes(option.value);
+                  return (
+                    <label className={`selection-card ${selected ? 'selected' : ''}`} key={option.value}>
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => setProfile({
+                          ...profile,
+                          ethnicity: selected
+                            ? profile.ethnicity.filter((item) => item !== option.value)
+                            : [...(Array.isArray(profile.ethnicity) ? profile.ethnicity : []), option.value],
+                        })}
+                      />
+                      <span className="selection-card-title">{option.label}</span>
+                      <span className="selection-card-copy">{option.description}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+            <LocationAutocomplete value={profile.location || ''} onChange={(location) => setProfile({ ...profile, location })} />
+            <PatientConditionsField
+              value={Array.isArray(profile.conditions) ? profile.conditions : []}
+              onChange={(conditions) => setProfile({ ...profile, conditions })}
+            />
             <label className="checkbox-row">
               <input
                 type="checkbox"

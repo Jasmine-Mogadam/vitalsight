@@ -35,6 +35,7 @@ First-time setup: `cp backend/.env.example backend/.env` and fill in API keys.
 | Endpoint | Method | Purpose | External API |
 |---|---|---|---|
 | `/api/health` | GET | Health check | — |
+| `/api/locations/search` | GET | Location autocomplete | Geoapify |
 | `/api/analyze` | POST | Vitals analysis | Google Gemini |
 | `/api/speak` | POST | Text-to-speech | ElevenLabs |
 | `/api/log-vitals` | POST | Blockchain logging | Solana devnet |
@@ -47,6 +48,7 @@ First-time setup: `cp backend/.env.example backend/.env` and fill in API keys.
 - `ELEVENLABS_VOICE_ID` — Voice ID (default: Sarah `EXAVITQu4vr4xnSDxMaL`)
 - `SOLANA_PRIVATE_KEY` — JSON array of keypair bytes for devnet (used by /log-vitals)
 - `B2_KEY_ID`, `B2_APP_KEY`, `B2_BUCKET_ID` — Backblaze B2 credentials (used by /store-vitals)
+- `GEOAPIFY_API_KEY` — Geoapify API key (used by /api/locations/search)
 
 ## Frontend Environment Variables
 

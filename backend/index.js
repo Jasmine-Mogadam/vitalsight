@@ -19,6 +19,8 @@ const { getJwtSecret } = require('./config/security');
 const app = express();
 const DEFAULT_ALLOWED_ORIGINS = ['http://localhost:5173'];
 const MAX_SPEECH_TEXT_LENGTH = 2_000;
+const LOCATION_SEARCH_RESULT_LIMIT = 6;
+const LOCATION_AUTOCOMPLETE_PROVIDER = process.env.LOCATION_AUTOCOMPLETE_PROVIDER || 'geoapify';
 
 function normalizeOrigin(value) {
   return typeof value === 'string' ? value.trim().replace(/\/+$/, '') : '';
@@ -92,6 +94,56 @@ app.use('/api', (req, _res, next) => {
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', service: 'vitalsight-api' });
+});
+
+app.get('/api/locations/search', requireAuth, async (req, res) => {
+  const query = typeof req.query.q === 'string' ? req.query.q.trim() : '';
+  if (query.length < 2) {
+    return res.json({ results: [] });
+  }
+
+  try {
+    if (LOCATION_AUTOCOMPLETE_PROVIDER !== 'geoapify') {
+      return res.status(500).json({ error: 'Unsupported location provider configuration' });
+    }
+
+    const apiKey = process.env.GEOAPIFY_API_KEY?.trim();
+    if (!apiKey) {
+      return res.status(500).json({ error: 'GEOAPIFY_API_KEY not configured' });
+    }
+
+    const searchUrl = new URL('https://api.geoapify.com/v1/geocode/autocomplete');
+    searchUrl.searchParams.set('text', query);
+    searchUrl.searchParams.set('format', 'json');
+    searchUrl.searchParams.set('limit', String(LOCATION_SEARCH_RESULT_LIMIT));
+    searchUrl.searchParams.set('apiKey', apiKey);
+
+    const response = await fetch(searchUrl, {
+      headers: {
+        Accept: 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const details = await response.text();
+      console.error('Location search error:', details);
+      return res.status(502).json({ error: 'Location search failed' });
+    }
+
+    const payload = await response.json();
+    const results = Array.isArray(payload.results)
+      ? payload.results.map((item) => ({
+          id: item.place_id || item.formatted,
+          label: item.formatted,
+          value: item.formatted || [item.city, item.state, item.country].filter(Boolean).join(', '),
+        }))
+      : [];
+
+    res.json({ results });
+  } catch (error) {
+    console.error('Location search error:', error);
+    res.status(500).json({ error: 'Location search failed' });
+  }
 });
 
 app.use('/api/auth', authRoutes);
