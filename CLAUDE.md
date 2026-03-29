@@ -6,7 +6,7 @@ AR-powered remote patient vitals monitor for clinical trials. Webcam-based conta
 
 ```
 frontend/               Vite + React SPA
-  src/App.jsx           Main app — all pages in one file (Monitor, Synthetic Data, Business Plan, Social Impact)
+  src/App.jsx           Main app — all pages in one file (Monitor, Business Plan, Social Impact)
   src/App.css           Dark theme UI styles
   index.html            Entry point — loads MediaPipe via CDN script tags
   vite.config.js        Dev proxy for /api to localhost:3001
@@ -39,11 +39,10 @@ First-time setup: `cp backend/.env.example backend/.env` and fill in API keys.
 | `/api/speak` | POST | Text-to-speech | ElevenLabs |
 | `/api/log-vitals` | POST | Blockchain logging | Solana devnet |
 | `/api/store-vitals` | POST | Persist vitals JSON | Backblaze B2 |
-| `/api/generate-synthetic` | POST | Generate training data | Google Gemini |
 
 ## Environment Variables (backend/.env)
 
-- `GEMINI_API_KEY` — Google AI Studio key (used by /analyze and /generate-synthetic)
+- `GEMINI_API_KEY` — Google AI Studio key (used by /analyze)
 - `ELEVENLABS_API_KEY` — ElevenLabs key (used by /speak)
 - `ELEVENLABS_VOICE_ID` — Voice ID (default: Sarah `EXAVITQu4vr4xnSDxMaL`)
 - `SOLANA_PRIVATE_KEY` — JSON array of keypair bytes for devnet (used by /log-vitals)
@@ -67,6 +66,6 @@ First-time setup: `cp backend/.env.example backend/.env` and fill in API keys.
 - **Single Fly.io app** — `deploy.sh` checks if the app/machines exist, creates them if needed, then deploys. The Dockerfile does a multi-stage build: builds the frontend, then copies the `dist/` output into the backend's `public/` directory. Express serves both the API and the static frontend.
 - **Domain** → .tech domain pointed via Cloudflare DNS
 
-## Hackathon Category Targets (12/13)
+## Hackathon Category Targets (11/13)
 
-Overall, Most Technically Impressive, Best Business Plan, Best Social Impact, Best Use of AR, Medpace (clinical trials), Kinetic Vision (synthetic data), MLH Gemini API, MLH ElevenLabs, MLH Presage, MLH Solana, MLH .Tech
+Overall, Most Technically Impressive, Best Business Plan, Best Social Impact, Best Use of AR, Medpace (clinical trials), MLH Gemini API, MLH ElevenLabs, MLH Presage, MLH Solana, MLH .Tech

@@ -16,7 +16,6 @@ import FormFill from './components/FormFill';
 import Profile from './components/Profile';
 import JoinTrial from './components/JoinTrial';
 import MonitorPage from './pages/MonitorPage';
-import SyntheticDataPage from './pages/SyntheticDataPage';
 import BusinessPlanPage from './pages/BusinessPlanPage';
 import SocialImpactPage from './pages/SocialImpactPage';
 
@@ -54,14 +53,6 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <MonitorPage />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/synthetic"
-              element={
-                <ProtectedRoute>
-                  <SyntheticDataPage />
                 </ProtectedRoute>
               }
             />

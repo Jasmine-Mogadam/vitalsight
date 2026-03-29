@@ -240,6 +240,12 @@ textarea {
   gap: 28px;
 }
 
+.hero-card-grid {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+}
+
 .accent-card {
   background: linear-gradient(180deg, rgba(183, 71, 42, 0.08), rgba(183, 71, 42, 0.02));
 }
@@ -745,6 +751,7 @@ textarea {
 }
 
 @media (max-width: 900px) {
+  .hero-card-grid,
   .hero-panel,
   .content-grid,
   .panel-grid.two-up,

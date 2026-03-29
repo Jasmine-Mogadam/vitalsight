@@ -217,62 +217,6 @@ app.post('/api/store-vitals', async (req, res) => {
   }
 });
 
-app.post('/api/generate-synthetic', async (req, res) => {
-  try {
-    const { count = 10 } = req.body;
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) return res.status(500).json({ error: 'GEMINI_API_KEY not configured' });
-
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: `Generate ${count} synthetic patient vitals records for training a computer vision health monitoring model. Each record should represent a different patient scenario (healthy, stressed, post-exercise, elderly, etc.).
-
-Return ONLY a JSON array with objects containing:
-- age (18-85)
-- gender ("M" or "F")
-- heartRate (40-180 bpm)
-- breathingRate (8-30 breaths/min)
-- stressLevel (0-100)
-- hrv (10-120 ms)
-- spo2 (88-100%)
-- skinTone (1-6, Fitzpatrick scale)
-- scenario (brief description)
-- label ("normal", "elevated", "concerning", "critical")
-
-Return ONLY valid JSON, no markdown.`,
-                },
-              ],
-            },
-          ],
-          generationConfig: { temperature: 0.9 },
-        }),
-      }
-    );
-
-    const data = await response.json();
-    if (!response.ok) {
-      console.error('Gemini API error:', JSON.stringify(data));
-      return res.status(502).json({ error: 'Gemini API error', details: data.error?.message || JSON.stringify(data) });
-    }
-
-    let text = data.candidates?.[0]?.content?.parts?.[0]?.text || '[]';
-    text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const syntheticData = JSON.parse(text);
-    res.json({ data: syntheticData, count: syntheticData.length });
-  } catch (error) {
-    console.error('Synthetic data error:', error);
-    res.status(500).json({ error: 'Synthetic data generation failed', details: error.message });
-  }
-});
-
 app.get('/{*splat}', (_req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });

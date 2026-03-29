@@ -44,7 +44,6 @@ export default function NavBar() {
         {user && <NavLink to="/dashboard">Dashboard</NavLink>}
         {user && <NavLink to="/discover">Discover</NavLink>}
         {user && <NavLink to="/monitor">Monitor</NavLink>}
-        {user && <NavLink to="/synthetic">Synthetic</NavLink>}
         {user && (
           <NavLink to="/inbox" className="badge-link">
             Inbox
